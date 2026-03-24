@@ -9,10 +9,10 @@ public class ReviewTaskResponse {
     private Long id;
     private Long userId;
     private String title;
-    private String sourceType;
+    private Integer sourceType;
     private String noteUrl;
     private String noteContent;
     private String timezone;
-    private String scheduleMode;
-    private String status;
+    private Integer scheduleMode;
+    private Integer status;
 }

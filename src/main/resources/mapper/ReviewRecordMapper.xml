@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.renote.backend.mapper.ReviewRecordMapper">
+
+    <insert id="insert" parameterType="com.renote.backend.entity.ReviewRecord">
+        INSERT INTO review_record
+        (task_id, user_id, schedule_id, reviewed_at, review_result, confidence_score, note, created_at, updated_at)
+        VALUES
+        (#{taskId}, #{userId}, #{scheduleId}, #{reviewedAt}, #{reviewResult}, #{confidenceScore}, #{note}, NOW(3), NOW(3))
+    </insert>
+
+</mapper>
