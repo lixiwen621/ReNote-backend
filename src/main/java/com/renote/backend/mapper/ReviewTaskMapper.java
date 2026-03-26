@@ -11,6 +11,8 @@ public interface ReviewTaskMapper {
 
     ReviewTask findById(@Param("id") Long id);
 
+    ReviewTask findByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
+
     int updateLastReviewedAt(@Param("taskId") Long taskId, @Param("lastReviewedAt") LocalDateTime lastReviewedAt);
 
     int updateNextRemindAt(@Param("taskId") Long taskId, @Param("nextRemindAt") LocalDateTime nextRemindAt);

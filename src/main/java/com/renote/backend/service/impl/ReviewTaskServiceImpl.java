@@ -43,12 +43,12 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public ReviewTaskResponse createTask(CreateReviewTaskRequest request) {
+    public ReviewTaskResponse createTask(Long userId, CreateReviewTaskRequest request) {
         Integer scheduleModeCode = request.getScheduleMode() == null
                 ? ScheduleMode.FORGETTING_CURVE.code()
                 : ScheduleMode.fromCode(request.getScheduleMode()).code();
         ReviewTask task = new ReviewTask();
-        task.setUserId(request.getUserId() == null ? 1L : request.getUserId());
+        task.setUserId(userId);
         task.setTitle(request.getTitle());
         task.setSourceType(NoteSourceType.fromCode(request.getSourceType()).code());
         task.setNoteUrl(request.getNoteUrl());
@@ -81,8 +81,8 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
     }
 
     @Override
-    public ReviewTaskResponse getTask(Long taskId) {
-        ReviewTask task = reviewTaskMapper.findById(taskId);
+    public ReviewTaskResponse getTask(Long userId, Long taskId) {
+        ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
         if (task == null) {
             throw new IllegalArgumentException("任务不存在: " + taskId);
         }
@@ -90,8 +90,8 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
     }
 
     @Override
-    public List<ReminderScheduleResponse> getTaskSchedules(Long taskId) {
-        ensureTaskExists(taskId);
+    public List<ReminderScheduleResponse> getTaskSchedules(Long userId, Long taskId) {
+        ensureTaskExistsForUser(taskId, userId);
         List<ReminderSchedule> schedules = reminderScheduleMapper.findByTaskId(taskId);
         List<ReminderScheduleResponse> responses = new ArrayList<>();
         for (ReminderSchedule schedule : schedules) {
@@ -111,11 +111,12 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void completeReview(Long taskId, ReviewCompleteRequest request) {
-        ReviewTask task = ensureTaskExists(taskId);
+    public void completeReview(Long userId, Long taskId, ReviewCompleteRequest request) {
+        ensureTaskExistsForUser(taskId, userId);
+
         ReviewRecord record = new ReviewRecord();
         record.setTaskId(taskId);
-        record.setUserId(request.getUserId() == null ? task.getUserId() : request.getUserId());
+        record.setUserId(userId);
         record.setScheduleId(request.getScheduleId());
         record.setReviewedAt(LocalDateTime.now());
         record.setReviewResult(ReviewResult.fromCode(request.getReviewResult()).code());
@@ -133,8 +134,8 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         reviewTaskMapper.updateNextRemindAt(taskId, next);
     }
 
-    private ReviewTask ensureTaskExists(Long taskId) {
-        ReviewTask task = reviewTaskMapper.findById(taskId);
+    private ReviewTask ensureTaskExistsForUser(Long taskId, Long userId) {
+        ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
         if (task == null) {
             throw new IllegalArgumentException("任务不存在: " + taskId);
         }

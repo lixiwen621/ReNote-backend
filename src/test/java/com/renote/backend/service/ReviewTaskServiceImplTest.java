@@ -37,12 +37,12 @@ class ReviewTaskServiceImplTest {
         }).when(reviewTaskMapper).insert(any(ReviewTask.class));
 
         CreateReviewTaskRequest req = new CreateReviewTaskRequest();
-        req.setUserId(1L);
         req.setTitle("测试笔记");
         req.setSourceType(1);
 
-        assertNotNull(service.createTask(req));
-        verify(reminderScheduleMapper).insert(any());
+        assertNotNull(service.createTask(1L, req));
+        // 默认遗忘曲线会生成 5 个提醒时间点
+        verify(reminderScheduleMapper, org.mockito.Mockito.times(5)).insert(any());
     }
 
     @Test
@@ -55,14 +55,14 @@ class ReviewTaskServiceImplTest {
         ReviewTask task = new ReviewTask();
         task.setId(1001L);
         task.setUserId(1L);
-        when(reviewTaskMapper.findById(anyLong())).thenReturn(task);
+        when(reviewTaskMapper.findByIdAndUserId(anyLong(), anyLong())).thenReturn(task);
         when(reminderScheduleMapper.findByTaskId(anyLong())).thenReturn(Collections.emptyList());
 
         ReviewCompleteRequest req = new ReviewCompleteRequest();
         req.setReviewResult(1);
         req.setConfidenceScore(5);
 
-        service.completeReview(1001L, req);
+        service.completeReview(1L, 1001L, req);
 
         ArgumentCaptor<Long> taskIdCaptor = ArgumentCaptor.forClass(Long.class);
         verify(reviewTaskMapper).updateLastReviewedAt(taskIdCaptor.capture(), any());

@@ -9,11 +9,11 @@ import java.util.List;
 
 public interface ReviewTaskService {
 
-    ReviewTaskResponse createTask(CreateReviewTaskRequest request);
+    ReviewTaskResponse createTask(Long userId, CreateReviewTaskRequest request);
 
-    ReviewTaskResponse getTask(Long taskId);
+    ReviewTaskResponse getTask(Long userId, Long taskId);
 
-    List<ReminderScheduleResponse> getTaskSchedules(Long taskId);
+    List<ReminderScheduleResponse> getTaskSchedules(Long userId, Long taskId);
 
-    void completeReview(Long taskId, ReviewCompleteRequest request);
+    void completeReview(Long userId, Long taskId, ReviewCompleteRequest request);
 }

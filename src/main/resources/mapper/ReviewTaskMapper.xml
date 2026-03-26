@@ -13,18 +13,38 @@
 
     <select id="findById" resultType="com.renote.backend.entity.ReviewTask">
         SELECT id,
-               user_id         AS userId,
+               user_id           AS userId,
                title,
-               source_type     AS sourceType,
-               note_url        AS noteUrl,
-               note_content    AS noteContent,
+               source_type       AS sourceType,
+               note_url          AS noteUrl,
+               note_content      AS noteContent,
                timezone,
-               schedule_mode   AS scheduleMode,
+               schedule_mode     AS scheduleMode,
                status,
-               created_at      AS createdAt,
-               updated_at      AS updatedAt
+               last_reviewed_at  AS lastReviewedAt,
+               next_remind_at    AS nextRemindAt,
+               created_at        AS createdAt,
+               updated_at        AS updatedAt
         FROM review_task
         WHERE id = #{id}
+    </select>
+
+    <select id="findByIdAndUserId" resultType="com.renote.backend.entity.ReviewTask">
+        SELECT id,
+               user_id           AS userId,
+               title,
+               source_type       AS sourceType,
+               note_url          AS noteUrl,
+               note_content      AS noteContent,
+               timezone,
+               schedule_mode     AS scheduleMode,
+               status,
+               last_reviewed_at  AS lastReviewedAt,
+               next_remind_at    AS nextRemindAt,
+               created_at        AS createdAt,
+               updated_at        AS updatedAt
+        FROM review_task
+        WHERE id = #{id} AND user_id = #{userId}
     </select>
 
     <update id="updateLastReviewedAt">

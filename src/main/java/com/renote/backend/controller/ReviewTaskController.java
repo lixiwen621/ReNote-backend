@@ -3,47 +3,84 @@ package com.renote.backend.controller;
 import com.renote.backend.common.ApiResponse;
 import com.renote.backend.dto.CreateReviewTaskRequest;
 import com.renote.backend.dto.ReminderScheduleResponse;
+import com.renote.backend.dto.ReviewTaskOverviewResponse;
 import com.renote.backend.dto.ReviewCompleteRequest;
 import com.renote.backend.dto.ReviewTaskResponse;
+import com.renote.backend.dto.TodayReviewTaskCardResponse;
 import com.renote.backend.service.ReviewTaskService;
+import com.renote.backend.service.ReviewOverviewService;
 import jakarta.validation.Valid;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/review-tasks")
 public class ReviewTaskController {
 
     private final ReviewTaskService reviewTaskService;
+    private final ReviewOverviewService reviewOverviewService;
 
-    public ReviewTaskController(ReviewTaskService reviewTaskService) {
+    public ReviewTaskController(ReviewTaskService reviewTaskService, ReviewOverviewService reviewOverviewService) {
         this.reviewTaskService = reviewTaskService;
+        this.reviewOverviewService = reviewOverviewService;
     }
 
     @PostMapping
-    public ApiResponse<ReviewTaskResponse> createTask(@Valid @RequestBody CreateReviewTaskRequest request) {
-        return ApiResponse.success(reviewTaskService.createTask(request));
+    public ApiResponse<ReviewTaskResponse> createTask(
+            Authentication authentication,
+            @Valid @RequestBody CreateReviewTaskRequest request) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ApiResponse.success(reviewTaskService.createTask(userId, request));
     }
 
     @GetMapping("/{taskId}")
-    public ApiResponse<ReviewTaskResponse> getTask(@PathVariable Long taskId) {
-        return ApiResponse.success(reviewTaskService.getTask(taskId));
+    public ApiResponse<ReviewTaskResponse> getTask(Authentication authentication, @PathVariable Long taskId) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ApiResponse.success(reviewTaskService.getTask(userId, taskId));
     }
 
     @GetMapping("/{taskId}/schedules")
-    public ApiResponse<List<ReminderScheduleResponse>> getTaskSchedules(@PathVariable Long taskId) {
-        return ApiResponse.success(reviewTaskService.getTaskSchedules(taskId));
+    public ApiResponse<List<ReminderScheduleResponse>> getTaskSchedules(
+            Authentication authentication,
+            @PathVariable Long taskId) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ApiResponse.success(reviewTaskService.getTaskSchedules(userId, taskId));
     }
 
     @PostMapping("/{taskId}/complete")
-    public ApiResponse<Void> completeReview(@PathVariable Long taskId, @Valid @RequestBody ReviewCompleteRequest request) {
-        reviewTaskService.completeReview(taskId, request);
+    public ApiResponse<Void> completeReview(
+            Authentication authentication,
+            @PathVariable Long taskId,
+            @Valid @RequestBody ReviewCompleteRequest request) {
+        Long userId = (Long) authentication.getPrincipal();
+        reviewTaskService.completeReview(userId, taskId, request);
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/overview")
+    public ApiResponse<ReviewTaskOverviewResponse> overview(
+            Authentication authentication,
+            @RequestParam(required = false) String date) {
+        Long userId = (Long) authentication.getPrincipal();
+        LocalDate localDate = (date == null || date.isBlank()) ? LocalDate.now() : LocalDate.parse(date);
+        return ApiResponse.success(reviewOverviewService.getTodayOverview(userId, localDate));
+    }
+
+    @GetMapping("/today")
+    public ApiResponse<List<TodayReviewTaskCardResponse>> todayTasks(
+            Authentication authentication,
+            @RequestParam(required = false) String date) {
+        Long userId = (Long) authentication.getPrincipal();
+        LocalDate localDate = (date == null || date.isBlank()) ? LocalDate.now() : LocalDate.parse(date);
+        return ApiResponse.success(reviewOverviewService.getTodayTaskCards(userId, localDate));
     }
 }

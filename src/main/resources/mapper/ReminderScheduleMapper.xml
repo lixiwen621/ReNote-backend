@@ -51,6 +51,70 @@
         LIMIT #{limit}
     </select>
 
+    <select id="findPendingInRangeByUser" resultType="com.renote.backend.entity.ReminderSchedule">
+        SELECT id,
+               task_id         AS taskId,
+               user_id         AS userId,
+               scheduled_at    AS scheduledAt,
+               status,
+               attempt_count   AS attemptCount,
+               max_attempts    AS maxAttempts,
+               last_attempt_at AS lastAttemptAt,
+               sent_at         AS sentAt,
+               idempotency_key AS idempotencyKey,
+               fail_reason     AS failReason,
+               created_at      AS createdAt,
+               updated_at      AS updatedAt
+        FROM reminder_schedule
+        WHERE user_id = #{userId}
+          AND status = 1
+          AND scheduled_at <![CDATA[ >= ]]> #{start}
+          AND scheduled_at <![CDATA[ < ]]> #{end}
+        ORDER BY scheduled_at ASC
+    </select>
+
+    <select id="findPendingOnDateByUser" resultType="com.renote.backend.entity.ReminderSchedule">
+        SELECT id,
+               task_id         AS taskId,
+               user_id         AS userId,
+               scheduled_at    AS scheduledAt,
+               status,
+               attempt_count   AS attemptCount,
+               max_attempts    AS maxAttempts,
+               last_attempt_at AS lastAttemptAt,
+               sent_at         AS sentAt,
+               idempotency_key AS idempotencyKey,
+               fail_reason     AS failReason,
+               created_at      AS createdAt,
+               updated_at      AS updatedAt
+        FROM reminder_schedule
+        WHERE user_id = #{userId}
+          AND status = 1
+          AND DATE(scheduled_at) = #{date}
+        ORDER BY scheduled_at ASC
+    </select>
+
+    <select id="findNextPendingByUser" resultType="com.renote.backend.entity.ReminderSchedule">
+        SELECT id,
+               task_id         AS taskId,
+               user_id         AS userId,
+               scheduled_at    AS scheduledAt,
+               status,
+               attempt_count   AS attemptCount,
+               max_attempts    AS maxAttempts,
+               last_attempt_at AS lastAttemptAt,
+               sent_at         AS sentAt,
+               idempotency_key AS idempotencyKey,
+               fail_reason     AS failReason,
+               created_at      AS createdAt,
+               updated_at      AS updatedAt
+        FROM reminder_schedule
+        WHERE user_id = #{userId}
+          AND status = 1
+        ORDER BY scheduled_at ASC
+        LIMIT 1
+    </select>
+
     <update id="markSendingIfPending">
         UPDATE reminder_schedule
         SET status = 2,

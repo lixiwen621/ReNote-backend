@@ -14,6 +14,7 @@ import com.renote.backend.notify.WeChatNotifyClient;
 import com.renote.backend.service.ReminderDispatchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,6 +30,7 @@ public class ReminderDispatchServiceImpl implements ReminderDispatchService {
     private final WeChatNotifyClient weChatNotifyClient;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void dispatchDueReminders() {
         List<ReminderSchedule> dueSchedules = reminderScheduleMapper.findDuePending(LocalDateTime.now(), 200);
         for (ReminderSchedule schedule : dueSchedules) {

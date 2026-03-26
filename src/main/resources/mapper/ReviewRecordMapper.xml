@@ -11,4 +11,19 @@
         (#{taskId}, #{userId}, #{scheduleId}, #{reviewedAt}, #{reviewResult}, #{confidenceScore}, #{note}, NOW(3), NOW(3))
     </insert>
 
+    <select id="countReviewedInRangeByUser" resultType="int">
+        SELECT COUNT(*)
+        FROM review_record
+        WHERE user_id = #{userId}
+          AND reviewed_at <![CDATA[ >= ]]> #{start}
+          AND reviewed_at <![CDATA[ < ]]> #{end}
+    </select>
+
+    <select id="countReviewedOnDateByUser" resultType="int">
+        SELECT COUNT(*)
+        FROM review_record
+        WHERE user_id = #{userId}
+          AND DATE(reviewed_at) = #{date}
+    </select>
+
 </mapper>

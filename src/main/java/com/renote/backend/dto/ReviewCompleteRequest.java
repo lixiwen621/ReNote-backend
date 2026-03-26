@@ -5,7 +5,6 @@ import lombok.Data;
 
 @Data
 public class ReviewCompleteRequest {
-    private Long userId;
     private Long scheduleId;
     @NotNull(message = "reviewResult不能为空")
     private Integer reviewResult;

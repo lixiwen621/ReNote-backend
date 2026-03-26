@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.renote.backend.mapper.UserMapper">
+
+    <insert id="insert" parameterType="com.renote.backend.entity.User" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (username, password_hash, status, created_at, updated_at)
+        VALUES (#{username}, #{passwordHash}, #{status}, NOW(3), NOW(3))
+    </insert>
+
+    <select id="findByUsername" resultType="com.renote.backend.entity.User">
+        SELECT id,
+               username,
+               password_hash AS passwordHash,
+               status,
+               created_at      AS createdAt,
+               updated_at      AS updatedAt
+        FROM users
+        WHERE username = #{username}
+    </select>
+
+    <select id="findById" resultType="com.renote.backend.entity.User">
+        SELECT id,
+               username,
+               password_hash AS passwordHash,
+               status,
+               created_at      AS createdAt,
+               updated_at      AS updatedAt
+        FROM users
+        WHERE id = #{id}
+    </select>
+
+</mapper>

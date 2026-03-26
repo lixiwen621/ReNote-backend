@@ -10,8 +10,6 @@ import java.util.List;
 @Data
 public class CreateReviewTaskRequest {
 
-    private Long userId;
-
     @NotBlank(message = "title不能为空")
     private String title;
 
