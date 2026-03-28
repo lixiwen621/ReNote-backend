@@ -1,0 +1,43 @@
+# 生产环境（腾讯云等）
+# 激活（任选其一）：
+#   java -jar xxx.jar --spring.profiles.active=prod
+#   或 export SPRING_PROFILES_ACTIVE=prod
+#
+# 必填：DB_USERNAME、DB_PASSWORD、JWT_SECRET（生产请用强随机串）
+# 选填：WECHAT_*、CORS_ALLOWED_ORIGINS 等，不填则下面用空/0，避免沿用 application.yml 里的开发默认值
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/renote?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+logging:
+  level:
+    com.renote.backend.mapper: warn
+
+notify:
+  wechat:
+    enabled: ${WECHAT_ENABLED:true}
+    mock-success: ${WECHAT_MOCK_SUCCESS:false}
+    corp-id: ${WECHAT_CORP_ID:}
+    agent-id: ${WECHAT_AGENT_ID:0}
+    secret: ${WECHAT_SECRET:}
+    callback-token: ${WECHAT_CALLBACK_TOKEN:}
+    callback-encoding-aes-key: ${WECHAT_CALLBACK_ENCODING_AES_KEY:}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+
+security:
+  sql-injection:
+    enabled: ${SQL_INJECTION_ENABLED:true}
+    block: ${SQL_INJECTION_BLOCK:true}

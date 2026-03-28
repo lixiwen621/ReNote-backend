@@ -26,8 +26,13 @@ review:
 
 notify:
   wechat:
-    enabled: ${WECHAT_ENABLED:false}
-    mock-success: ${WECHAT_MOCK_SUCCESS:true}
+    enabled: ${WECHAT_ENABLED:true}
+    mock-success: ${WECHAT_MOCK_SUCCESS:false}
+    corp-id: ${WECHAT_CORP_ID:ww341d4c208d81d852}
+    agent-id: ${WECHAT_AGENT_ID:1000002}
+    secret: ${WECHAT_SECRET:qBthBZxIXcjPIAa6lX8fJ1CS_tc2Os0Lm60G2LWjHT8}
+    callback-token: ${WECHAT_CALLBACK_TOKEN:9zxodk8uX5H}
+    callback-encoding-aes-key: ${WECHAT_CALLBACK_ENCODING_AES_KEY:UCbIunAehFz9Itig0LtdMdbETGzFn9n6olbB9Kh3lXQ}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173}

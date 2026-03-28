@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.renote.backend.mapper.NotifyChannelBindingMapper">
+
+    <select id="findActiveByUserAndChannel" resultType="com.renote.backend.entity.NotifyChannelBinding">
+        SELECT id,
+               user_id         AS userId,
+               channel,
+               channel_user_id AS channelUserId,
+               status,
+               extra,
+               created_at      AS createdAt,
+               updated_at      AS updatedAt
+        FROM notify_channel_binding
+        WHERE user_id = #{userId}
+          AND channel = #{channel}
+          AND status = 1
+        LIMIT 1
+    </select>
+
+    <insert id="upsertBinding">
+        INSERT INTO notify_channel_binding (user_id, channel, channel_user_id, status, created_at, updated_at)
+        VALUES (#{userId}, #{channel}, #{channelUserId}, #{status}, NOW(3), NOW(3))
+        ON DUPLICATE KEY UPDATE
+            channel_user_id = VALUES(channel_user_id),
+            status = VALUES(status),
+            updated_at = NOW(3)
+    </insert>
+
+</mapper>
+
