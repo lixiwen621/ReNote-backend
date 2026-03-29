@@ -1,3 +1,15 @@
+# 默认（不激活任何 profile）：只加载本文件 application.yml。
+# 激活 prod 时：application.yml + application-prod.yml（后者覆盖同名项）。
+# 本地个人覆盖：复制 application-local.yml.example 为 application-local.yml（已 .gitignore），激活 local。
+# 组合示例：spring.profiles.active=prod,local → 先 prod 再 local，local 覆盖 prod。
+# 切换方式示例：
+#   prod：mvn spring-boot:run -Dspring-boot.run.profiles=prod  或  mvn spring-boot:run -Prun-prod（见 pom.xml <profiles>）
+#   local：mvn spring-boot:run -Dspring-boot.run.profiles=local  或  -Prun-local
+#   prod+local：mvn spring-boot:run -Dspring-boot.run.profiles=prod,local  或  -Prun-prod-local
+#   JAR：java -jar xxx.jar --spring.profiles.active=prod
+#   环境变量：export SPRING_PROFILES_ACTIVE=prod
+#   IDE：Run Configuration → Active profiles 填 prod / local / prod,local（留空则仅本文件）
+
 server:
   port: 8083
 

@@ -30,6 +30,25 @@
         ORDER BY scheduled_at ASC
     </select>
 
+    <select id="findByIdAndUserId" resultType="com.renote.backend.entity.ReminderSchedule">
+        SELECT id,
+               task_id         AS taskId,
+               user_id         AS userId,
+               scheduled_at    AS scheduledAt,
+               status,
+               attempt_count   AS attemptCount,
+               max_attempts    AS maxAttempts,
+               last_attempt_at AS lastAttemptAt,
+               sent_at         AS sentAt,
+               idempotency_key AS idempotencyKey,
+               fail_reason     AS failReason,
+               created_at      AS createdAt,
+               updated_at      AS updatedAt
+        FROM reminder_schedule
+        WHERE id = #{id}
+          AND user_id = #{userId}
+    </select>
+
     <select id="findDuePending" resultType="com.renote.backend.entity.ReminderSchedule">
         SELECT id,
                task_id         AS taskId,
@@ -94,6 +113,33 @@
         ORDER BY scheduled_at ASC
     </select>
 
+    <select id="findIncompleteReviewOnDateByUser" resultType="com.renote.backend.entity.ReminderSchedule">
+        SELECT s.id,
+               s.task_id         AS taskId,
+               s.user_id         AS userId,
+               s.scheduled_at    AS scheduledAt,
+               s.status,
+               s.attempt_count   AS attemptCount,
+               s.max_attempts    AS maxAttempts,
+               s.last_attempt_at AS lastAttemptAt,
+               s.sent_at         AS sentAt,
+               s.idempotency_key AS idempotencyKey,
+               s.fail_reason     AS failReason,
+               s.created_at      AS createdAt,
+               s.updated_at      AS updatedAt
+        FROM reminder_schedule s
+        WHERE s.user_id = #{userId}
+          AND DATE(s.scheduled_at) = #{date}
+          AND s.status != 5
+          AND NOT EXISTS (
+              SELECT 1
+              FROM review_record r
+              WHERE r.user_id = #{userId}
+                AND r.schedule_id = s.id
+          )
+        ORDER BY s.scheduled_at ASC
+    </select>
+
     <select id="findNextPendingByUser" resultType="com.renote.backend.entity.ReminderSchedule">
         SELECT id,
                task_id         AS taskId,
@@ -130,6 +176,15 @@
             sent_at = NOW(3),
             updated_at = NOW(3)
         WHERE id = #{id}
+    </update>
+
+    <update id="markSentIfPending">
+        UPDATE reminder_schedule
+        SET status = 3,
+            sent_at = NOW(3),
+            updated_at = NOW(3)
+        WHERE id = #{id}
+          AND status = 1
     </update>
 
     <update id="markFailure">

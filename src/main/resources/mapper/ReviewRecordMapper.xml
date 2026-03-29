@@ -11,6 +11,13 @@
         (#{taskId}, #{userId}, #{scheduleId}, #{reviewedAt}, #{reviewResult}, #{confidenceScore}, #{note}, NOW(3), NOW(3))
     </insert>
 
+    <select id="countByUserIdAndScheduleId" resultType="int">
+        SELECT COUNT(*)
+        FROM review_record
+        WHERE user_id = #{userId}
+          AND schedule_id = #{scheduleId}
+    </select>
+
     <select id="countReviewedInRangeByUser" resultType="int">
         SELECT COUNT(*)
         FROM review_record
@@ -19,11 +26,27 @@
           AND reviewed_at <![CDATA[ < ]]> #{end}
     </select>
 
+    <!-- 当日「完成」按排期去重：有 schedule_id 时按 schedule_id；无则按 task_id 合并为 1（同日同任务 legacy 多次完成只计 1） -->
     <select id="countReviewedOnDateByUser" resultType="int">
-        SELECT COUNT(*)
-        FROM review_record
-        WHERE user_id = #{userId}
-          AND DATE(reviewed_at) = #{date}
+        SELECT
+            IFNULL((
+                SELECT COUNT(DISTINCT schedule_id)
+                FROM review_record
+                WHERE user_id = #{userId}
+                  AND DATE(reviewed_at) = #{date}
+                  AND schedule_id IS NOT NULL
+            ), 0)
+            + IFNULL((
+                SELECT COUNT(*)
+                FROM (
+                    SELECT task_id
+                    FROM review_record
+                    WHERE user_id = #{userId}
+                      AND DATE(reviewed_at) = #{date}
+                      AND schedule_id IS NULL
+                    GROUP BY task_id
+                ) legacy_per_task
+            ), 0)
     </select>
 
 </mapper>

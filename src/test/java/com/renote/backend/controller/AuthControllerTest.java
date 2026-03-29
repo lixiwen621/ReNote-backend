@@ -5,8 +5,12 @@ import com.renote.backend.dto.CurrentUserResponse;
 import com.renote.backend.dto.LoginRequest;
 import com.renote.backend.dto.LoginResponse;
 import com.renote.backend.dto.RegisterRequest;
+import com.renote.backend.config.SecurityConfig;
 import com.renote.backend.service.AuthService;
+import com.renote.backend.service.impl.AuthServiceImpl;
+import com.renote.backend.security.JwtAuthenticationFilter;
 import com.renote.backend.security.JwtTokenProvider;
+import com.renote.backend.security.RestAuthenticationEntryPoint;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,14 +18,15 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.Collections;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -30,10 +35,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = AuthController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
+@WebMvcTest(
+        controllers = AuthController.class,
+        excludeAutoConfiguration = {SecurityAutoConfiguration.class, UserDetailsServiceAutoConfiguration.class},
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = AuthServiceImpl.class))
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, RestAuthenticationEntryPoint.class})
 class AuthControllerTest {
 
     private static final Long USER_ID = 1L;
+    private static final String AUTH_HEADER = "Authorization";
+    private static final String BEARER_TOKEN = "Bearer test-jwt";
 
     @Autowired
     private MockMvc mockMvc;
@@ -51,9 +62,8 @@ class AuthControllerTest {
     private SqlSessionTemplate sqlSessionTemplate;
 
     @BeforeEach
-    void setAuthentication() {
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(USER_ID, null, Collections.emptyList()));
+    void stubJwt() {
+        Mockito.when(jwtTokenProvider.parseUserId(org.mockito.ArgumentMatchers.anyString())).thenReturn(USER_ID);
     }
 
     @AfterEach
@@ -113,7 +123,8 @@ class AuthControllerTest {
                 .build();
         Mockito.when(authService.getCurrentUser(eq(USER_ID))).thenReturn(response);
 
-        mockMvc.perform(get("/api/auth/me"))
+        mockMvc.perform(get("/api/auth/me")
+                        .header(AUTH_HEADER, BEARER_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.userId").value(1))

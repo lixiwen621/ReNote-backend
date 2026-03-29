@@ -19,6 +19,10 @@
 
     <properties>
         <java.version>17</java.version>
+        <!-- 可选：默认激活的 Spring profile（逗号分隔，如 local 或 prod,local）。不设则 mvn spring-boot:run 仅使用 application.yml。 -->
+        <!-- 也可用命令行覆盖：mvn spring-boot:run -Dspring-boot.run.profiles=prod -->
+        <!-- 或使用下方 Maven profile：-Prun-prod / -Prun-local / -Prun-prod-local -->
+        <!-- <spring-boot.run.profiles>local</spring-boot.run.profiles> -->
     </properties>
 
     <dependencies>
@@ -86,4 +90,26 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- Maven -P 与 Spring 的 spring.profiles.active 对应（仅影响 mvn spring-boot:run；java -jar 请传 spring.profiles.active 启动参数） -->
+    <profiles>
+        <profile>
+            <id>run-prod</id>
+            <properties>
+                <spring-boot.run.profiles>prod</spring-boot.run.profiles>
+            </properties>
+        </profile>
+        <profile>
+            <id>run-local</id>
+            <properties>
+                <spring-boot.run.profiles>local</spring-boot.run.profiles>
+            </properties>
+        </profile>
+        <profile>
+            <id>run-prod-local</id>
+            <properties>
+                <spring-boot.run.profiles>prod,local</spring-boot.run.profiles>
+            </properties>
+        </profile>
+    </profiles>
 </project>

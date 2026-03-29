@@ -30,7 +30,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(rollbackFor = Exception.class)
     public LoginResponse register(RegisterRequest request) {
         if (userMapper.findByUsername(request.getUsername().trim()) != null) {
-            throw new IllegalArgumentException("用户名已存在");
+            throw new IllegalArgumentException("该用户名已经注册请换一个用户名");
         }
         User user = new User();
         user.setUsername(request.getUsername().trim());
@@ -43,8 +43,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResponse login(LoginRequest request) {
         User user = userMapper.findByUsername(request.getUsername().trim());
-        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("用户名或密码错误");
+        if (user == null) {
+            throw new IllegalArgumentException("没有该用户名，请注册一下");
+        }
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("密码不正确");
         }
         if (!Integer.valueOf(UserStatus.ACTIVE.code()).equals(user.getStatus())) {
             throw new IllegalArgumentException("账号已禁用");

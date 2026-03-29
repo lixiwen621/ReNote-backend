@@ -10,6 +10,8 @@ public interface ReviewRecordMapper {
 
     int insert(ReviewRecord record);
 
+    int countByUserIdAndScheduleId(@Param("userId") Long userId, @Param("scheduleId") Long scheduleId);
+
     int countReviewedInRangeByUser(@Param("userId") Long userId,
                                      @Param("start") LocalDateTime start,
                                      @Param("end") LocalDateTime end);

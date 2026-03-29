@@ -6,9 +6,14 @@ import com.renote.backend.dto.ReviewCompleteRequest;
 import com.renote.backend.dto.ReviewTaskOverviewResponse;
 import com.renote.backend.dto.ReviewTaskResponse;
 import com.renote.backend.dto.TodayReviewTaskCardResponse;
+import com.renote.backend.config.SecurityConfig;
 import com.renote.backend.service.ReviewTaskService;
 import com.renote.backend.service.ReviewOverviewService;
+import com.renote.backend.service.impl.ReviewOverviewServiceImpl;
+import com.renote.backend.service.impl.ReviewTaskServiceImpl;
+import com.renote.backend.security.JwtAuthenticationFilter;
 import com.renote.backend.security.JwtTokenProvider;
+import com.renote.backend.security.RestAuthenticationEntryPoint;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,14 +21,16 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -33,10 +40,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = ReviewTaskController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
+@WebMvcTest(
+        controllers = ReviewTaskController.class,
+        excludeAutoConfiguration = {SecurityAutoConfiguration.class, UserDetailsServiceAutoConfiguration.class},
+        excludeFilters = @ComponentScan.Filter(
+                type = FilterType.ASSIGNABLE_TYPE,
+                classes = {ReviewTaskServiceImpl.class, ReviewOverviewServiceImpl.class}))
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, RestAuthenticationEntryPoint.class})
 class ReviewTaskControllerTest {
 
     private static final Long USER_ID = 1L;
+    private static final String AUTH_HEADER = "Authorization";
+    private static final String BEARER_TOKEN = "Bearer test-jwt";
 
     @Autowired
     private MockMvc mockMvc;
@@ -57,9 +72,8 @@ class ReviewTaskControllerTest {
     private SqlSessionTemplate sqlSessionTemplate;
 
     @BeforeEach
-    void setAuthentication() {
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(USER_ID, null, Collections.emptyList()));
+    void stubJwt() {
+        Mockito.when(jwtTokenProvider.parseUserId(org.mockito.ArgumentMatchers.anyString())).thenReturn(USER_ID);
     }
 
     @AfterEach
@@ -89,6 +103,7 @@ class ReviewTaskControllerTest {
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/review-tasks")
+                        .header(AUTH_HEADER, BEARER_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -104,6 +119,7 @@ class ReviewTaskControllerTest {
         request.setSourceType(1);
 
         mockMvc.perform(post("/api/review-tasks")
+                        .header(AUTH_HEADER, BEARER_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -126,7 +142,8 @@ class ReviewTaskControllerTest {
 
         Mockito.when(reviewTaskService.getTask(USER_ID, 1001L)).thenReturn(response);
 
-        mockMvc.perform(get("/api/review-tasks/1001"))
+        mockMvc.perform(get("/api/review-tasks/1001")
+                        .header(AUTH_HEADER, BEARER_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.id").value(1001))
@@ -141,6 +158,7 @@ class ReviewTaskControllerTest {
         request.setNote("已完成一次复习");
 
         mockMvc.perform(post("/api/review-tasks/1001/complete")
+                        .header(AUTH_HEADER, BEARER_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -152,6 +170,7 @@ class ReviewTaskControllerTest {
         ReviewTaskOverviewResponse response = new ReviewTaskOverviewResponse();
         response.setDueTaskCount(1);
         response.setDueReminderCount(2);
+        response.setPendingNotifyReminderCount(1);
         response.setCompletedTodayCount(0);
 
         ReviewTaskOverviewResponse.NextUpTaskResponse nextUp = new ReviewTaskOverviewResponse.NextUpTaskResponse();
@@ -163,11 +182,13 @@ class ReviewTaskControllerTest {
         Mockito.when(reviewOverviewService.getTodayOverview(eq(USER_ID), any(java.time.LocalDate.class)))
                 .thenReturn(response);
 
-        mockMvc.perform(get("/api/review-tasks/overview"))
+        mockMvc.perform(get("/api/review-tasks/overview")
+                        .header(AUTH_HEADER, BEARER_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.dueTaskCount").value(1))
                 .andExpect(jsonPath("$.data.dueReminderCount").value(2))
+                .andExpect(jsonPath("$.data.pendingNotifyReminderCount").value(1))
                 .andExpect(jsonPath("$.data.nextUp.taskId").value(1001))
                 .andExpect(jsonPath("$.data.nextUp.title").value("Java并发笔记"));
     }
@@ -180,18 +201,21 @@ class ReviewTaskControllerTest {
         card.setScheduledAt(java.time.LocalDateTime.of(2026, 3, 25, 9, 0, 0));
         card.setScheduleId(2001L);
         card.setScheduleStatus(1);
+        card.setReminderNotifyPhase(1);
         card.setCanComplete(true);
 
         Mockito.when(reviewOverviewService.getTodayTaskCards(eq(USER_ID), any(java.time.LocalDate.class)))
                 .thenReturn(List.of(card));
 
-        mockMvc.perform(get("/api/review-tasks/today"))
+        mockMvc.perform(get("/api/review-tasks/today")
+                        .header(AUTH_HEADER, BEARER_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data[0].taskId").value(1001))
                 .andExpect(jsonPath("$.data[0].title").value("Java并发笔记"))
                 .andExpect(jsonPath("$.data[0].scheduleId").value(2001))
                 .andExpect(jsonPath("$.data[0].scheduleStatus").value(1))
+                .andExpect(jsonPath("$.data[0].reminderNotifyPhase").value(1))
                 .andExpect(jsonPath("$.data[0].canComplete").value(true));
     }
 }

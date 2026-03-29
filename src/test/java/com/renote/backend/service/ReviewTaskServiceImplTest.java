@@ -2,6 +2,7 @@ package com.renote.backend.service;
 
 import com.renote.backend.dto.CreateReviewTaskRequest;
 import com.renote.backend.dto.ReviewCompleteRequest;
+import com.renote.backend.entity.ReminderSchedule;
 import com.renote.backend.entity.ReviewTask;
 import com.renote.backend.mapper.ReminderScheduleMapper;
 import com.renote.backend.mapper.ReviewRecordMapper;
@@ -18,6 +19,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,5 +71,69 @@ class ReviewTaskServiceImplTest {
         verify(reviewTaskMapper).updateLastReviewedAt(taskIdCaptor.capture(), any());
         assertEquals(1001L, taskIdCaptor.getValue());
         verify(reviewRecordMapper).insert(any());
+        verify(reminderScheduleMapper, never()).findByIdAndUserId(anyLong(), anyLong());
+        verify(reminderScheduleMapper, never()).markSentIfPending(anyLong());
+    }
+
+    @Test
+    void shouldCompleteWithScheduleIdAndMarkScheduleSent() {
+        ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
+        ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
+        ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+
+        ReviewTask task = new ReviewTask();
+        task.setId(1001L);
+        task.setUserId(1L);
+        when(reviewTaskMapper.findByIdAndUserId(anyLong(), anyLong())).thenReturn(task);
+
+        ReminderSchedule schedule = new ReminderSchedule();
+        schedule.setId(2001L);
+        schedule.setTaskId(1001L);
+        schedule.setUserId(1L);
+        when(reminderScheduleMapper.findByIdAndUserId(2001L, 1L)).thenReturn(schedule);
+        when(reviewRecordMapper.countByUserIdAndScheduleId(1L, 2001L)).thenReturn(0);
+        when(reminderScheduleMapper.findByTaskId(1001L)).thenReturn(Collections.emptyList());
+
+        ReviewCompleteRequest req = new ReviewCompleteRequest();
+        req.setScheduleId(2001L);
+        req.setReviewResult(1);
+
+        service.completeReview(1L, 1001L, req);
+
+        verify(reviewRecordMapper, times(1)).insert(any());
+        verify(reminderScheduleMapper, times(1)).markSentIfPending(2001L);
+    }
+
+    @Test
+    void shouldNotInsertSecondRecordWhenSameScheduleIdCompletedTwice() {
+        ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
+        ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
+        ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+
+        ReviewTask task = new ReviewTask();
+        task.setId(1001L);
+        task.setUserId(1L);
+        when(reviewTaskMapper.findByIdAndUserId(anyLong(), anyLong())).thenReturn(task);
+
+        ReminderSchedule schedule = new ReminderSchedule();
+        schedule.setId(2001L);
+        schedule.setTaskId(1001L);
+        schedule.setUserId(1L);
+        when(reminderScheduleMapper.findByIdAndUserId(2001L, 1L)).thenReturn(schedule);
+        when(reviewRecordMapper.countByUserIdAndScheduleId(1L, 2001L)).thenReturn(0, 1);
+        when(reminderScheduleMapper.findByTaskId(1001L)).thenReturn(Collections.emptyList());
+
+        ReviewCompleteRequest req = new ReviewCompleteRequest();
+        req.setScheduleId(2001L);
+        req.setReviewResult(1);
+
+        service.completeReview(1L, 1001L, req);
+        service.completeReview(1L, 1001L, req);
+
+        verify(reviewRecordMapper, times(1)).insert(any());
+        verify(reviewTaskMapper, times(1)).updateLastReviewedAt(anyLong(), any());
+        verify(reminderScheduleMapper, times(2)).markSentIfPending(2001L);
     }
 }

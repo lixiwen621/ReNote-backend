@@ -114,16 +114,32 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
     public void completeReview(Long userId, Long taskId, ReviewCompleteRequest request) {
         ensureTaskExistsForUser(taskId, userId);
 
+        Long scheduleId = request.getScheduleId();
+        if (scheduleId != null) {
+            ReminderSchedule schedule = reminderScheduleMapper.findByIdAndUserId(scheduleId, userId);
+            if (schedule == null || !taskId.equals(schedule.getTaskId())) {
+                throw new IllegalArgumentException("提醒计划不存在或不属于该任务: " + scheduleId);
+            }
+            if (reviewRecordMapper.countByUserIdAndScheduleId(userId, scheduleId) > 0) {
+                reminderScheduleMapper.markSentIfPending(scheduleId);
+                return;
+            }
+        }
+
         ReviewRecord record = new ReviewRecord();
         record.setTaskId(taskId);
         record.setUserId(userId);
-        record.setScheduleId(request.getScheduleId());
+        record.setScheduleId(scheduleId);
         record.setReviewedAt(LocalDateTime.now());
         record.setReviewResult(ReviewResult.fromCode(request.getReviewResult()).code());
         record.setConfidenceScore(request.getConfidenceScore());
         record.setNote(request.getNote());
         reviewRecordMapper.insert(record);
         reviewTaskMapper.updateLastReviewedAt(taskId, record.getReviewedAt());
+
+        if (scheduleId != null) {
+            reminderScheduleMapper.markSentIfPending(scheduleId);
+        }
 
         List<ReminderSchedule> remains = reminderScheduleMapper.findByTaskId(taskId);
         LocalDateTime next = remains.stream()
