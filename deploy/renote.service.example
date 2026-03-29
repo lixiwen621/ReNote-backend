@@ -1,0 +1,21 @@
+# 复制到服务器：sudo cp renote.service.example /etc/systemd/system/renote.service
+# 按需修改 User、路径后执行：
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable renote
+#   sudo systemctl start renote
+
+[Unit]
+Description=ReNote Backend
+After=network.target mysqld.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/renote
+EnvironmentFile=/opt/renote/renote.env
+ExecStart=/usr/bin/java -jar /opt/renote/renote-backend-0.0.1-SNAPSHOT.jar
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
