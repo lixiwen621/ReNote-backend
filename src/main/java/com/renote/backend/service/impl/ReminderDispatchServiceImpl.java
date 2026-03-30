@@ -13,13 +13,15 @@ import com.renote.backend.notify.NotifyResult;
 import com.renote.backend.notify.WeChatNotifyClient;
 import com.renote.backend.service.ReminderDispatchService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReminderDispatchServiceImpl implements ReminderDispatchService {
@@ -30,7 +32,6 @@ public class ReminderDispatchServiceImpl implements ReminderDispatchService {
     private final WeChatNotifyClient weChatNotifyClient;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void dispatchDueReminders() {
         List<ReminderSchedule> dueSchedules = reminderScheduleMapper.findDuePending(LocalDateTime.now(), 200);
         for (ReminderSchedule schedule : dueSchedules) {
@@ -57,7 +58,14 @@ public class ReminderDispatchServiceImpl implements ReminderDispatchService {
         log.setTaskId(task.getId());
         log.setUserId(task.getUserId());
         log.setChannel(NotifyChannel.WECHAT.code());
-        log.setRequestId(result.isSuccess() ? result.getRequestId() : "FAIL-" + UUID.randomUUID());
+        String requestId = result.isSuccess() ? result.getRequestId() : "FAIL-" + UUID.randomUUID();
+        if (!StringUtils.hasText(requestId)) {
+            requestId = "EMPTY-" + UUID.randomUUID();
+        }
+        if (requestId.length() > 64) {
+            requestId = requestId.substring(0, 64);
+        }
+        log.setRequestId(requestId);
         log.setMessageTitle(task.getTitle());
         log.setMessageBody(content);
         log.setSentAt(LocalDateTime.now());
@@ -74,6 +82,12 @@ public class ReminderDispatchServiceImpl implements ReminderDispatchService {
             log.setErrorCode(result.getErrorCode());
             log.setErrorMessage(result.getErrorMessage());
         }
-        notifyMessageLogMapper.insert(log);
+        try {
+            notifyMessageLogMapper.insert(log);
+        } catch (Exception ex) {
+            // 不让日志写入失败回滚排期状态，避免已发送但仍反复重发
+            log.warn("write notify_message_log failed, scheduleId={}, taskId={}, requestId={}",
+                    schedule.getId(), task.getId(), log.getRequestId(), ex);
+        }
     }
 }

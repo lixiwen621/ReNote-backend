@@ -150,8 +150,8 @@ public class WeChatNotifyClient {
         if (value == null) {
             return defaultValue;
         }
-        if (value instanceof Number n) {
-            return n.intValue();
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
         }
         try {
             return Integer.parseInt(String.valueOf(value));

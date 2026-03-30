@@ -18,7 +18,7 @@ mybatis:
 
 logging:
   level:
-    com.renote.backend.mapper: warn
+    com.renote.backend.mapper: info
 
 # 企业微信：应用消息发送 + 回调 URL 验签（与企微管理后台「自建应用」配置一致）
 notify:
