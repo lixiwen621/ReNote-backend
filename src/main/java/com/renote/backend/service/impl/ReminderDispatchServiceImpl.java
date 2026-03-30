@@ -53,11 +53,11 @@ public class ReminderDispatchServiceImpl implements ReminderDispatchService {
         String content = task.getNoteUrl() != null ? task.getNoteUrl() : task.getNoteContent();
         NotifyResult result = weChatNotifyClient.sendReminder(task.getUserId(), task.getTitle(), content);
 
-        NotifyMessageLog log = new NotifyMessageLog();
-        log.setScheduleId(schedule.getId());
-        log.setTaskId(task.getId());
-        log.setUserId(task.getUserId());
-        log.setChannel(NotifyChannel.WECHAT.code());
+        NotifyMessageLog notifyLog = new NotifyMessageLog();
+        notifyLog.setScheduleId(schedule.getId());
+        notifyLog.setTaskId(task.getId());
+        notifyLog.setUserId(task.getUserId());
+        notifyLog.setChannel(NotifyChannel.WECHAT.code());
         String requestId = result.isSuccess() ? result.getRequestId() : "FAIL-" + UUID.randomUUID();
         if (!StringUtils.hasText(requestId)) {
             requestId = "EMPTY-" + UUID.randomUUID();
@@ -65,29 +65,29 @@ public class ReminderDispatchServiceImpl implements ReminderDispatchService {
         if (requestId.length() > 64) {
             requestId = requestId.substring(0, 64);
         }
-        log.setRequestId(requestId);
-        log.setMessageTitle(task.getTitle());
-        log.setMessageBody(content);
-        log.setSentAt(LocalDateTime.now());
+        notifyLog.setRequestId(requestId);
+        notifyLog.setMessageTitle(task.getTitle());
+        notifyLog.setMessageBody(content);
+        notifyLog.setSentAt(LocalDateTime.now());
 
         if (result.isSuccess()) {
             reminderScheduleMapper.markSent(schedule.getId());
-            log.setSendStatus(NotifySendStatus.SUCCESS.code());
+            notifyLog.setSendStatus(NotifySendStatus.SUCCESS.code());
         } else {
             int nextStatus = schedule.getAttemptCount() + 1 >= schedule.getMaxAttempts()
                     ? ReminderScheduleStatus.FAILED.code()
                     : ReminderScheduleStatus.PENDING.code();
             reminderScheduleMapper.markFailure(schedule.getId(), nextStatus, result.getErrorMessage());
-            log.setSendStatus(NotifySendStatus.FAILED.code());
-            log.setErrorCode(result.getErrorCode());
-            log.setErrorMessage(result.getErrorMessage());
+            notifyLog.setSendStatus(NotifySendStatus.FAILED.code());
+            notifyLog.setErrorCode(result.getErrorCode());
+            notifyLog.setErrorMessage(result.getErrorMessage());
         }
         try {
-            notifyMessageLogMapper.insert(log);
+            notifyMessageLogMapper.insert(notifyLog);
         } catch (Exception ex) {
             // 不让日志写入失败回滚排期状态，避免已发送但仍反复重发
             log.warn("write notify_message_log failed, scheduleId={}, taskId={}, requestId={}",
-                    schedule.getId(), task.getId(), log.getRequestId(), ex);
+                    schedule.getId(), task.getId(), notifyLog.getRequestId(), ex);
         }
     }
 }
