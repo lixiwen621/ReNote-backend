@@ -29,6 +29,13 @@ public interface ReminderScheduleMapper {
      */
     List<ReminderSchedule> findIncompleteReviewOnDateByUser(@Param("userId") Long userId, @Param("date") LocalDate date);
 
+    /**
+     * 周视图：自然日落在 [startDate, endDate] 内的排期（不含已取消）
+     */
+    List<ReminderSchedule> findSchedulesInDateRangeByUser(@Param("userId") Long userId,
+                                                          @Param("startDate") LocalDate startDate,
+                                                          @Param("endDate") LocalDate endDate);
+
     ReminderSchedule findNextPendingByUser(@Param("userId") Long userId);
 
     int markSendingIfPending(@Param("id") Long id);
@@ -41,4 +48,8 @@ public interface ReminderScheduleMapper {
     int markFailure(@Param("id") Long id, @Param("status") Integer status, @Param("failReason") String failReason);
 
     int cancelByTaskId(@Param("taskId") Long taskId);
+
+    int updateScheduledAtByIdAndUserId(@Param("id") Long id,
+                                       @Param("userId") Long userId,
+                                       @Param("scheduledAt") LocalDateTime scheduledAt);
 }

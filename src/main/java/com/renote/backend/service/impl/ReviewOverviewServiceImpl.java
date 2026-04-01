@@ -2,6 +2,9 @@ package com.renote.backend.service.impl;
 
 import com.renote.backend.dto.ReviewTaskOverviewResponse;
 import com.renote.backend.dto.TodayReviewTaskCardResponse;
+import com.renote.backend.dto.WeekReviewDayResponse;
+import com.renote.backend.dto.WeekReviewScheduleResponse;
+import com.renote.backend.dto.WeekReviewTaskCardResponse;
 import com.renote.backend.entity.ReminderSchedule;
 import com.renote.backend.entity.ReviewTask;
 import com.renote.backend.enums.ReminderScheduleStatus;
@@ -12,11 +15,18 @@ import com.renote.backend.service.ReviewOverviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -83,6 +93,68 @@ public class ReviewOverviewServiceImpl implements ReviewOverviewService {
             card.setTitle(title);
             return card;
         }).toList();
+    }
+
+    @Override
+    public WeekReviewScheduleResponse getWeekSchedule(Long userId, LocalDate anchorDate) {
+        LocalDate anchor = anchorDate != null ? anchorDate : LocalDate.now();
+        LocalDate weekStart = anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate weekEnd = weekStart.plusDays(6);
+
+        List<ReminderSchedule> schedules =
+                reminderScheduleMapper.findSchedulesInDateRangeByUser(userId, weekStart, weekEnd);
+        List<Long> scheduleIds = schedules.stream().map(ReminderSchedule::getId).filter(Objects::nonNull).toList();
+        Set<Long> completedIds;
+        if (scheduleIds.isEmpty()) {
+            completedIds = Set.of();
+        } else {
+            completedIds = new HashSet<>(reviewRecordMapper.findCompletedScheduleIdsByUserAndScheduleIds(userId, scheduleIds));
+        }
+
+        Map<Long, String> taskTitleCache = new HashMap<>();
+        Map<LocalDate, List<ReminderSchedule>> byDay =
+                schedules.stream().collect(Collectors.groupingBy(s -> s.getScheduledAt().toLocalDate()));
+
+        List<WeekReviewDayResponse> days = new ArrayList<>(7);
+        for (int i = 0; i < 7; i++) {
+            LocalDate d = weekStart.plusDays(i);
+            WeekReviewDayResponse day = new WeekReviewDayResponse();
+            day.setDate(d);
+            List<ReminderSchedule> daySchedules = new ArrayList<>(byDay.getOrDefault(d, List.of()));
+            daySchedules.sort(Comparator.comparing(ReminderSchedule::getScheduledAt));
+            day.setItems(daySchedules.stream()
+                    .map(s -> toWeekCard(s, userId, taskTitleCache, completedIds))
+                    .toList());
+            days.add(day);
+        }
+
+        WeekReviewScheduleResponse response = new WeekReviewScheduleResponse();
+        response.setWeekStart(weekStart);
+        response.setWeekEnd(weekEnd);
+        response.setDays(days);
+        return response;
+    }
+
+    private WeekReviewTaskCardResponse toWeekCard(ReminderSchedule schedule,
+                                                  Long userId,
+                                                  Map<Long, String> taskTitleCache,
+                                                  Set<Long> completedIds) {
+        boolean reviewCompleted = completedIds.contains(schedule.getId());
+        WeekReviewTaskCardResponse card = new WeekReviewTaskCardResponse();
+        card.setTaskId(schedule.getTaskId());
+        card.setScheduleId(schedule.getId());
+        card.setScheduledAt(schedule.getScheduledAt());
+        card.setScheduleStatus(schedule.getStatus());
+        card.setReminderNotifyPhase(toReminderNotifyPhase(schedule.getStatus()));
+        card.setReviewCompleted(reviewCompleted);
+        card.setCanComplete(!reviewCompleted);
+
+        String title = taskTitleCache.computeIfAbsent(schedule.getTaskId(), taskId -> {
+            ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
+            return task == null ? null : task.getTitle();
+        });
+        card.setTitle(title);
+        return card;
     }
 
     /**

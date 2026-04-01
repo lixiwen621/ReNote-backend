@@ -6,6 +6,11 @@ import com.renote.backend.dto.ReviewCompleteRequest;
 import com.renote.backend.dto.ReviewTaskOverviewResponse;
 import com.renote.backend.dto.ReviewTaskResponse;
 import com.renote.backend.dto.TodayReviewTaskCardResponse;
+import com.renote.backend.dto.UpdateScheduleTimeRequest;
+import com.renote.backend.dto.UpdateScheduleTimeResponse;
+import com.renote.backend.dto.WeekReviewDayResponse;
+import com.renote.backend.dto.WeekReviewScheduleResponse;
+import com.renote.backend.dto.WeekReviewTaskCardResponse;
 import com.renote.backend.config.SecurityConfig;
 import com.renote.backend.service.ReviewTaskService;
 import com.renote.backend.service.ReviewOverviewService;
@@ -36,6 +41,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -217,5 +223,66 @@ class ReviewTaskControllerTest {
                 .andExpect(jsonPath("$.data[0].scheduleStatus").value(1))
                 .andExpect(jsonPath("$.data[0].reminderNotifyPhase").value(1))
                 .andExpect(jsonPath("$.data[0].canComplete").value(true));
+    }
+
+    @Test
+    void shouldGetWeekScheduleSuccessfully() throws Exception {
+        WeekReviewScheduleResponse week = new WeekReviewScheduleResponse();
+        week.setWeekStart(java.time.LocalDate.of(2026, 3, 16));
+        week.setWeekEnd(java.time.LocalDate.of(2026, 3, 22));
+        WeekReviewDayResponse mon = new WeekReviewDayResponse();
+        mon.setDate(java.time.LocalDate.of(2026, 3, 16));
+        WeekReviewTaskCardResponse card = new WeekReviewTaskCardResponse();
+        card.setTaskId(1001L);
+        card.setTitle("Java并发笔记");
+        card.setScheduledAt(java.time.LocalDateTime.of(2026, 3, 16, 9, 0, 0));
+        card.setScheduleId(2001L);
+        card.setScheduleStatus(3);
+        card.setReminderNotifyPhase(3);
+        card.setReviewCompleted(true);
+        card.setCanComplete(false);
+        mon.setItems(List.of(card));
+        week.setDays(List.of(mon));
+
+        Mockito.when(reviewOverviewService.getWeekSchedule(eq(USER_ID), any(java.time.LocalDate.class)))
+                .thenReturn(week);
+
+        mockMvc.perform(get("/api/review-tasks/week")
+                        .param("date", "2026-03-18")
+                        .header(AUTH_HEADER, BEARER_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.weekStart").value("2026-03-16"))
+                .andExpect(jsonPath("$.data.weekEnd").value("2026-03-22"))
+                .andExpect(jsonPath("$.data.days[0].date").value("2026-03-16"))
+                .andExpect(jsonPath("$.data.days[0].items[0].reviewCompleted").value(true))
+                .andExpect(jsonPath("$.data.days[0].items[0].canComplete").value(false));
+    }
+
+    @Test
+    void shouldUpdateScheduleTimeSuccessfully() throws Exception {
+        UpdateScheduleTimeRequest request = new UpdateScheduleTimeRequest();
+        request.setScheduledAt(java.time.LocalDateTime.of(2026, 4, 1, 21, 0, 0));
+
+        UpdateScheduleTimeResponse response = UpdateScheduleTimeResponse.builder()
+                .scheduleId(2001L)
+                .taskId(1001L)
+                .scheduledAt(java.time.LocalDateTime.of(2026, 4, 1, 21, 0, 0))
+                .scheduleStatus(1)
+                .build();
+
+        Mockito.when(reviewTaskService.updateScheduleTime(eq(USER_ID), eq(1001L), eq(2001L), any(UpdateScheduleTimeRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(patch("/api/review-tasks/1001/schedules/2001/time")
+                        .header(AUTH_HEADER, BEARER_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.scheduleId").value(2001))
+                .andExpect(jsonPath("$.data.taskId").value(1001))
+                .andExpect(jsonPath("$.data.scheduledAt").value("2026-04-01T21:00:00"))
+                .andExpect(jsonPath("$.data.scheduleStatus").value(1));
     }
 }
