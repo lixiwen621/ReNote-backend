@@ -35,6 +35,12 @@ logging:
 review:
   scheduler:
     delay-ms: 10000
+  # 遗忘曲线自动排期（未传手动 remindTimes 时使用）
+  forgetting-curve:
+    # 相对「创建当日」（用户时区）的天数偏移，默认 1,2,4,7,15,20
+    day-offsets: [1, 2, 4, 7, 15, 20]
+    # 每日固定提醒时刻（ISO-8601 本地时间，无时区）
+    remind-time: "14:30"
 
 notify:
   wechat:

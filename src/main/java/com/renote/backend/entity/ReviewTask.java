@@ -14,6 +14,8 @@ public class ReviewTask {
     private String noteContent;
     private String timezone;
     private Integer scheduleMode;
+    /** 提醒时间策略：1=全部自定义 2=遗忘曲线（见 ReminderStrategy） */
+    private Integer reminderStrategy;
     private Integer status;
     private LocalDateTime lastReviewedAt;
     private LocalDateTime nextRemindAt;

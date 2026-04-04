@@ -6,17 +6,20 @@ import com.renote.backend.dto.ReviewCompleteRequest;
 import com.renote.backend.dto.ReviewTaskResponse;
 import com.renote.backend.dto.UpdateScheduleTimeRequest;
 import com.renote.backend.dto.UpdateScheduleTimeResponse;
+import com.renote.backend.dto.UpdateTaskNoteUrlRequest;
 import com.renote.backend.entity.ReminderSchedule;
 import com.renote.backend.entity.ReviewTask;
 import com.renote.backend.entity.ReviewRecord;
 import com.renote.backend.enums.NoteSourceType;
 import com.renote.backend.enums.ReminderScheduleStatus;
+import com.renote.backend.enums.ReminderStrategy;
 import com.renote.backend.enums.ReviewResult;
 import com.renote.backend.enums.ReviewTaskStatus;
 import com.renote.backend.enums.ScheduleMode;
 import com.renote.backend.mapper.ReminderScheduleMapper;
 import com.renote.backend.mapper.ReviewTaskMapper;
 import com.renote.backend.mapper.ReviewRecordMapper;
+import com.renote.backend.config.ForgettingCurveProperties;
 import com.renote.backend.service.ReviewTaskService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,27 +39,35 @@ import java.util.UUID;
 @Service
 public class ReviewTaskServiceImpl implements ReviewTaskService {
 
-    /** 遗忘曲线自动排期：各次提醒在该日期的固定时刻（用户时区 wall-clock，与 {@code timezone} 字段语义一致） */
-    private static final LocalTime DEFAULT_FORGETTING_CURVE_REMIND_TIME = LocalTime.of(14, 30);
-
     private final ReviewTaskMapper reviewTaskMapper;
     private final ReminderScheduleMapper reminderScheduleMapper;
     private final ReviewRecordMapper reviewRecordMapper;
+    private final ForgettingCurveProperties forgettingCurveProperties;
 
     public ReviewTaskServiceImpl(ReviewTaskMapper reviewTaskMapper,
                                  ReminderScheduleMapper reminderScheduleMapper,
-                                 ReviewRecordMapper reviewRecordMapper) {
+                                 ReviewRecordMapper reviewRecordMapper,
+                                 ForgettingCurveProperties forgettingCurveProperties) {
         this.reviewTaskMapper = reviewTaskMapper;
         this.reminderScheduleMapper = reminderScheduleMapper;
         this.reviewRecordMapper = reviewRecordMapper;
+        this.forgettingCurveProperties = forgettingCurveProperties;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ReviewTaskResponse createTask(Long userId, CreateReviewTaskRequest request) {
-        Integer scheduleModeCode = request.getScheduleMode() == null
+        Integer scheduleModeInput = request.getScheduleMode() == null
                 ? ScheduleMode.FORGETTING_CURVE.code()
                 : ScheduleMode.fromCode(request.getScheduleMode()).code();
+
+        int reminderStrategyCode = resolveReminderStrategy(request, scheduleModeInput);
+        validateReminderStrategyRequest(request, reminderStrategyCode);
+
+        int scheduleModeCode = reminderStrategyCode == ReminderStrategy.FULL_CUSTOM.code()
+                ? ScheduleMode.MANUAL.code()
+                : ScheduleMode.FORGETTING_CURVE.code();
+
         ReviewTask task = new ReviewTask();
         task.setUserId(userId);
         task.setTitle(request.getTitle());
@@ -65,10 +76,11 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         task.setNoteContent(request.getNoteContent());
         task.setTimezone(StringUtils.hasText(request.getTimezone()) ? request.getTimezone() : "Asia/Shanghai");
         task.setScheduleMode(scheduleModeCode);
+        task.setReminderStrategy(reminderStrategyCode);
         task.setStatus(ReviewTaskStatus.ACTIVE.code());
         reviewTaskMapper.insert(task);
 
-        List<LocalDateTime> remindTimes = buildRemindTimes(request, scheduleModeCode, task.getTimezone());
+        List<LocalDateTime> remindTimes = buildRemindTimes(request, reminderStrategyCode, task.getTimezone());
         LocalDateTime nextRemindAt = null;
         for (LocalDateTime remindTime : remindTimes) {
             ReminderSchedule schedule = new ReminderSchedule();
@@ -183,17 +195,9 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
             throw new IllegalArgumentException("该排期已完成复习，不可修改");
         }
 
-        LocalDateTime newScheduledAt = request.getScheduledAt();
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime currentMinute = now.truncatedTo(ChronoUnit.MINUTES);
-        if (newScheduledAt.truncatedTo(ChronoUnit.MINUTES).equals(currentMinute)) {
-            throw new IllegalArgumentException("提醒时间必须晚于当前分钟");
-        }
-        if (newScheduledAt.isBefore(now)) {
-            throw new IllegalArgumentException("提醒时间不能早于当前时间");
-        }
+        validateScheduledAtForNewReminder(request.getScheduledAt());
 
-        reminderScheduleMapper.updateScheduledAtByIdAndUserId(scheduleId, userId, newScheduledAt);
+        reminderScheduleMapper.updateScheduledAtByIdAndUserId(scheduleId, userId, request.getScheduledAt());
 
         List<ReminderSchedule> remains = reminderScheduleMapper.findByTaskId(taskId);
         LocalDateTime next = remains.stream()
@@ -212,6 +216,30 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
                 .build();
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ReviewTaskResponse updateTaskNoteUrl(Long userId, Long taskId, UpdateTaskNoteUrlRequest request) {
+        ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
+        if (task == null) {
+            throw new IllegalArgumentException("任务不存在: " + taskId);
+        }
+        Integer st = task.getStatus();
+        if (Integer.valueOf(ReviewTaskStatus.ARCHIVED.code()).equals(st)) {
+            throw new IllegalArgumentException("任务已归档，不可修改链接");
+        }
+        if (Integer.valueOf(ReviewTaskStatus.DELETED.code()).equals(st)) {
+            throw new IllegalArgumentException("任务已删除，不可修改链接");
+        }
+
+        String noteUrl = request.getNoteUrl();
+        if (noteUrl != null && noteUrl.isBlank()) {
+            noteUrl = null;
+        }
+        reviewTaskMapper.updateNoteUrlByIdAndUserId(taskId, userId, noteUrl);
+        task.setNoteUrl(noteUrl);
+        return toResponse(task);
+    }
+
     private ReviewTask ensureTaskExistsForUser(Long taskId, Long userId) {
         ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
         if (task == null) {
@@ -220,23 +248,81 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         return task;
     }
 
-    private List<LocalDateTime> buildRemindTimes(CreateReviewTaskRequest request, Integer scheduleMode, String timezone) {
-        if (Integer.valueOf(ScheduleMode.MANUAL.code()).equals(scheduleMode)
+    private int resolveReminderStrategy(CreateReviewTaskRequest request, Integer scheduleModeInput) {
+        if (request.getReminderStrategy() != null) {
+            return ReminderStrategy.fromCode(request.getReminderStrategy()).code();
+        }
+        if (Integer.valueOf(ScheduleMode.MANUAL.code()).equals(scheduleModeInput)
                 && request.getRemindTimes() != null
                 && !request.getRemindTimes().isEmpty()) {
+            return ReminderStrategy.FULL_CUSTOM.code();
+        }
+        return ReminderStrategy.FORGETTING_CURVE.code();
+    }
+
+    private void validateReminderStrategyRequest(CreateReviewTaskRequest request, int reminderStrategyCode) {
+        if (reminderStrategyCode == ReminderStrategy.FULL_CUSTOM.code()) {
+            if (request.getRemindTimes() == null || request.getRemindTimes().isEmpty()) {
+                throw new IllegalArgumentException("提醒时间类型为全部自定义时，remindTimes不能为空");
+            }
+            for (LocalDateTime t : request.getRemindTimes()) {
+                if (t == null) {
+                    throw new IllegalArgumentException("remindTimes中不能包含空时间");
+                }
+            }
+            return;
+        }
+        if (request.getRemindTimes() != null && !request.getRemindTimes().isEmpty()) {
+            throw new IllegalArgumentException("提醒时间类型为遗忘曲线时，请勿传入remindTimes");
+        }
+        if (request.getFirstReminderAt() != null) {
+            validateScheduledAtForNewReminder(request.getFirstReminderAt());
+        }
+    }
+
+    /**
+     * 新建排期或首次自定义提醒：不可早于当前时刻，且不可落在当前分钟（与修改排期接口一致）。
+     */
+    private void validateScheduledAtForNewReminder(LocalDateTime scheduledAt) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime currentMinute = now.truncatedTo(ChronoUnit.MINUTES);
+        if (scheduledAt.truncatedTo(ChronoUnit.MINUTES).equals(currentMinute)) {
+            throw new IllegalArgumentException("提醒时间必须晚于当前分钟");
+        }
+        if (scheduledAt.isBefore(now)) {
+            throw new IllegalArgumentException("提醒时间不能早于当前时间");
+        }
+    }
+
+    private List<LocalDateTime> buildRemindTimes(CreateReviewTaskRequest request, int reminderStrategyCode, String timezone) {
+        if (reminderStrategyCode == ReminderStrategy.FULL_CUSTOM.code()) {
             List<LocalDateTime> list = new ArrayList<>(request.getRemindTimes());
             list.sort(LocalDateTime::compareTo);
             return list;
         }
 
-        LocalDate todayInUserZone = LocalDate.now(resolveZoneId(timezone));
-        return List.of(
-                LocalDateTime.of(todayInUserZone.plusDays(1), DEFAULT_FORGETTING_CURVE_REMIND_TIME),
-                LocalDateTime.of(todayInUserZone.plusDays(2), DEFAULT_FORGETTING_CURVE_REMIND_TIME),
-                LocalDateTime.of(todayInUserZone.plusDays(4), DEFAULT_FORGETTING_CURVE_REMIND_TIME),
-                LocalDateTime.of(todayInUserZone.plusDays(7), DEFAULT_FORGETTING_CURVE_REMIND_TIME),
-                LocalDateTime.of(todayInUserZone.plusDays(15), DEFAULT_FORGETTING_CURVE_REMIND_TIME)
-        );
+        ZoneId zone = resolveZoneId(timezone);
+        LocalDate d0 = LocalDate.now(zone);
+        LocalTime curveTime = request.getCurveRemindTime() != null
+                ? request.getCurveRemindTime()
+                : forgettingCurveProperties.getEffectiveRemindTime();
+        List<Integer> offsets = forgettingCurveProperties.getEffectiveDayOffsets();
+        if (offsets.isEmpty()) {
+            throw new IllegalStateException("遗忘曲线day-offsets配置为空");
+        }
+        List<LocalDateTime> curve = new ArrayList<>();
+        LocalDateTime first;
+        if (request.getFirstReminderAt() != null) {
+            first = request.getFirstReminderAt();
+        } else {
+            first = LocalDateTime.of(d0.plusDays(offsets.get(0)), curveTime);
+        }
+        curve.add(first);
+        for (int i = 1; i < offsets.size(); i++) {
+            curve.add(LocalDateTime.of(d0.plusDays(offsets.get(i)), curveTime));
+        }
+        curve.sort(Comparator.naturalOrder());
+        return curve;
     }
 
     private static ZoneId resolveZoneId(String timezone) {
@@ -260,6 +346,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
                 .noteContent(task.getNoteContent())
                 .timezone(task.getTimezone())
                 .scheduleMode(task.getScheduleMode())
+                .reminderStrategy(task.getReminderStrategy())
                 .status(task.getStatus())
                 .build();
     }

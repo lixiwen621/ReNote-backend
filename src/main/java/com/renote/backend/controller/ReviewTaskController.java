@@ -9,6 +9,7 @@ import com.renote.backend.dto.ReviewTaskResponse;
 import com.renote.backend.dto.TodayReviewTaskCardResponse;
 import com.renote.backend.dto.UpdateScheduleTimeRequest;
 import com.renote.backend.dto.UpdateScheduleTimeResponse;
+import com.renote.backend.dto.UpdateTaskNoteUrlRequest;
 import com.renote.backend.dto.WeekReviewScheduleResponse;
 import com.renote.backend.service.ReviewTaskService;
 import com.renote.backend.service.ReviewOverviewService;
@@ -50,6 +51,15 @@ public class ReviewTaskController {
     public ApiResponse<ReviewTaskResponse> getTask(Authentication authentication, @PathVariable Long taskId) {
         Long userId = (Long) authentication.getPrincipal();
         return ApiResponse.success(reviewTaskService.getTask(userId, taskId));
+    }
+
+    @PatchMapping("/{taskId}/note-url")
+    public ApiResponse<ReviewTaskResponse> updateTaskNoteUrl(
+            Authentication authentication,
+            @PathVariable Long taskId,
+            @Valid @RequestBody UpdateTaskNoteUrlRequest request) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ApiResponse.success(reviewTaskService.updateTaskNoteUrl(userId, taskId, request));
     }
 
     @GetMapping("/{taskId}/schedules")

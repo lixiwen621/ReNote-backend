@@ -6,9 +6,9 @@
 
     <insert id="insert" parameterType="com.renote.backend.entity.ReviewTask" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO review_task
-        (user_id, title, source_type, note_url, note_content, timezone, schedule_mode, status, created_at, updated_at)
+        (user_id, title, source_type, note_url, note_content, timezone, schedule_mode, reminder_strategy, status, created_at, updated_at)
         VALUES
-        (#{userId}, #{title}, #{sourceType}, #{noteUrl}, #{noteContent}, #{timezone}, #{scheduleMode}, #{status}, NOW(3), NOW(3))
+        (#{userId}, #{title}, #{sourceType}, #{noteUrl}, #{noteContent}, #{timezone}, #{scheduleMode}, #{reminderStrategy}, #{status}, NOW(3), NOW(3))
     </insert>
 
     <select id="findById" resultType="com.renote.backend.entity.ReviewTask">
@@ -20,6 +20,7 @@
                note_content      AS noteContent,
                timezone,
                schedule_mode     AS scheduleMode,
+               reminder_strategy AS reminderStrategy,
                status,
                last_reviewed_at  AS lastReviewedAt,
                next_remind_at    AS nextRemindAt,
@@ -38,6 +39,7 @@
                note_content      AS noteContent,
                timezone,
                schedule_mode     AS scheduleMode,
+               reminder_strategy AS reminderStrategy,
                status,
                last_reviewed_at  AS lastReviewedAt,
                next_remind_at    AS nextRemindAt,
@@ -59,6 +61,14 @@
         SET next_remind_at = #{nextRemindAt},
             updated_at = NOW(3)
         WHERE id = #{taskId}
+    </update>
+
+    <update id="updateNoteUrlByIdAndUserId">
+        UPDATE review_task
+        SET note_url = #{noteUrl},
+            updated_at = NOW(3)
+        WHERE id = #{taskId}
+          AND user_id = #{userId}
     </update>
 
 </mapper>

@@ -14,5 +14,7 @@ public class ReviewTaskResponse {
     private String noteContent;
     private String timezone;
     private Integer scheduleMode;
+    /** 1=全部自定义 2=遗忘曲线 */
+    private Integer reminderStrategy;
     private Integer status;
 }

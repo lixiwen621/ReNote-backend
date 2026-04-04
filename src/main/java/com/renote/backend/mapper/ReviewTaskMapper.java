@@ -16,4 +16,8 @@ public interface ReviewTaskMapper {
     int updateLastReviewedAt(@Param("taskId") Long taskId, @Param("lastReviewedAt") LocalDateTime lastReviewedAt);
 
     int updateNextRemindAt(@Param("taskId") Long taskId, @Param("nextRemindAt") LocalDateTime nextRemindAt);
+
+    int updateNoteUrlByIdAndUserId(@Param("taskId") Long taskId,
+                                   @Param("userId") Long userId,
+                                   @Param("noteUrl") String noteUrl);
 }

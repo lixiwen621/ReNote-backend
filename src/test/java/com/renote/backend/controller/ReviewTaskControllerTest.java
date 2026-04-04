@@ -8,6 +8,7 @@ import com.renote.backend.dto.ReviewTaskResponse;
 import com.renote.backend.dto.TodayReviewTaskCardResponse;
 import com.renote.backend.dto.UpdateScheduleTimeRequest;
 import com.renote.backend.dto.UpdateScheduleTimeResponse;
+import com.renote.backend.dto.UpdateTaskNoteUrlRequest;
 import com.renote.backend.dto.WeekReviewDayResponse;
 import com.renote.backend.dto.WeekReviewScheduleResponse;
 import com.renote.backend.dto.WeekReviewTaskCardResponse;
@@ -284,5 +285,33 @@ class ReviewTaskControllerTest {
                 .andExpect(jsonPath("$.data.taskId").value(1001))
                 .andExpect(jsonPath("$.data.scheduledAt").value("2026-04-01T21:00:00"))
                 .andExpect(jsonPath("$.data.scheduleStatus").value(1));
+    }
+
+    @Test
+    void shouldUpdateTaskNoteUrlSuccessfully() throws Exception {
+        UpdateTaskNoteUrlRequest request = new UpdateTaskNoteUrlRequest();
+        request.setNoteUrl("https://example.com/note/updated");
+
+        ReviewTaskResponse response = ReviewTaskResponse.builder()
+                .id(1001L)
+                .userId(1L)
+                .title("围手术期处理")
+                .sourceType(1)
+                .noteUrl("https://example.com/note/updated")
+                .timezone("Asia/Shanghai")
+                .scheduleMode(2)
+                .status(1)
+                .build();
+
+        Mockito.when(reviewTaskService.updateTaskNoteUrl(eq(USER_ID), eq(1001L), any(UpdateTaskNoteUrlRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(patch("/api/review-tasks/1001/note-url")
+                        .header(AUTH_HEADER, BEARER_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.noteUrl").value("https://example.com/note/updated"));
     }
 }

@@ -3,9 +3,13 @@ package com.renote.backend.service;
 import com.renote.backend.dto.CreateReviewTaskRequest;
 import com.renote.backend.dto.ReviewCompleteRequest;
 import com.renote.backend.dto.UpdateScheduleTimeRequest;
+import com.renote.backend.dto.UpdateTaskNoteUrlRequest;
+import com.renote.backend.dto.ReviewTaskResponse;
 import com.renote.backend.entity.ReminderSchedule;
 import com.renote.backend.entity.ReviewTask;
+import com.renote.backend.config.ForgettingCurveProperties;
 import com.renote.backend.enums.ReminderScheduleStatus;
+import com.renote.backend.enums.ReviewTaskStatus;
 import com.renote.backend.mapper.ReminderScheduleMapper;
 import com.renote.backend.mapper.ReviewRecordMapper;
 import com.renote.backend.mapper.ReviewTaskMapper;
@@ -33,12 +37,14 @@ import static org.mockito.Mockito.when;
 
 class ReviewTaskServiceImplTest {
 
+    private static final ForgettingCurveProperties DEFAULT_FORGETTING_CURVE = new ForgettingCurveProperties();
+
     @Test
     void shouldCreateTaskAndGenerateDefaultSchedules() {
         ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
         ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
         ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
-        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
 
         doAnswer(invocation -> {
             ReviewTask task = invocation.getArgument(0);
@@ -51,8 +57,8 @@ class ReviewTaskServiceImplTest {
         req.setSourceType(1);
 
         assertNotNull(service.createTask(1L, req));
-        // 默认遗忘曲线会生成 5 个提醒时间点
-        verify(reminderScheduleMapper, org.mockito.Mockito.times(5)).insert(any());
+        // 默认遗忘曲线会生成 6 个提醒时间点（1,2,4,7,15,20 天）
+        verify(reminderScheduleMapper, org.mockito.Mockito.times(6)).insert(any());
     }
 
     @Test
@@ -60,7 +66,7 @@ class ReviewTaskServiceImplTest {
         ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
         ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
         ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
-        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
 
         doAnswer(invocation -> {
             ReviewTask task = invocation.getArgument(0);
@@ -77,7 +83,7 @@ class ReviewTaskServiceImplTest {
 
         service.createTask(1L, req);
 
-        verify(reminderScheduleMapper, times(5)).insert(captor.capture());
+        verify(reminderScheduleMapper, times(6)).insert(captor.capture());
         List<ReminderSchedule> inserted = captor.getAllValues();
         for (ReminderSchedule s : inserted) {
             assertEquals(LocalTime.of(14, 30), s.getScheduledAt().toLocalTime());
@@ -89,7 +95,7 @@ class ReviewTaskServiceImplTest {
         ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
         ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
         ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
-        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
 
         ReviewTask task = new ReviewTask();
         task.setId(1001L);
@@ -116,7 +122,7 @@ class ReviewTaskServiceImplTest {
         ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
         ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
         ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
-        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
 
         ReviewTask task = new ReviewTask();
         task.setId(1001L);
@@ -146,7 +152,7 @@ class ReviewTaskServiceImplTest {
         ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
         ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
         ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
-        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
 
         ReviewTask task = new ReviewTask();
         task.setId(1001L);
@@ -178,7 +184,7 @@ class ReviewTaskServiceImplTest {
         ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
         ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
         ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
-        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
 
         ReviewTask task = new ReviewTask();
         task.setId(1001L);
@@ -205,7 +211,7 @@ class ReviewTaskServiceImplTest {
         ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
         ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
         ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
-        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
 
         ReviewTask task = new ReviewTask();
         task.setId(1001L);
@@ -232,7 +238,7 @@ class ReviewTaskServiceImplTest {
         ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
         ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
         ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
-        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
 
         ReviewTask task = new ReviewTask();
         task.setId(1001L);
@@ -260,7 +266,7 @@ class ReviewTaskServiceImplTest {
         ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
         ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
         ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
-        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
 
         ReviewTask task = new ReviewTask();
         task.setId(1001L);
@@ -295,5 +301,85 @@ class ReviewTaskServiceImplTest {
         verify(reviewTaskMapper, times(1)).updateNextRemindAt(1001L, after.getScheduledAt());
         assertEquals(ReminderScheduleStatus.PENDING.code(), resp.getScheduleStatus());
         assertTrue(resp.getScheduledAt().isAfter(LocalDateTime.now().plusMinutes(1)));
+    }
+
+    @Test
+    void shouldUpdateNoteUrlForActiveTask() {
+        ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
+        ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
+        ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
+
+        ReviewTask task = new ReviewTask();
+        task.setId(1001L);
+        task.setUserId(1L);
+        task.setTitle("t");
+        task.setSourceType(1);
+        task.setTimezone("Asia/Shanghai");
+        task.setScheduleMode(1);
+        task.setStatus(ReviewTaskStatus.ACTIVE.code());
+        when(reviewTaskMapper.findByIdAndUserId(1001L, 1L)).thenReturn(task);
+        when(reviewTaskMapper.updateNoteUrlByIdAndUserId(1001L, 1L, "https://x.com/a")).thenReturn(1);
+
+        UpdateTaskNoteUrlRequest req = new UpdateTaskNoteUrlRequest();
+        req.setNoteUrl("https://x.com/a");
+
+        ReviewTaskResponse resp = service.updateTaskNoteUrl(1L, 1001L, req);
+        assertEquals("https://x.com/a", resp.getNoteUrl());
+        verify(reviewTaskMapper).updateNoteUrlByIdAndUserId(1001L, 1L, "https://x.com/a");
+    }
+
+    @Test
+    void shouldRejectNoteUrlWhenTaskArchived() {
+        ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
+        ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
+        ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
+
+        ReviewTask task = new ReviewTask();
+        task.setId(1001L);
+        task.setUserId(1L);
+        task.setStatus(ReviewTaskStatus.ARCHIVED.code());
+        when(reviewTaskMapper.findByIdAndUserId(1001L, 1L)).thenReturn(task);
+
+        UpdateTaskNoteUrlRequest req = new UpdateTaskNoteUrlRequest();
+        req.setNoteUrl("https://x.com/a");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.updateTaskNoteUrl(1L, 1001L, req));
+        assertEquals("任务已归档，不可修改链接", ex.getMessage());
+    }
+
+    @Test
+    void shouldRejectForgettingCurveWhenRemindTimesProvided() {
+        ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
+        ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
+        ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
+
+        CreateReviewTaskRequest req = new CreateReviewTaskRequest();
+        req.setTitle("测试");
+        req.setSourceType(1);
+        req.setReminderStrategy(2);
+        req.setRemindTimes(List.of(LocalDateTime.now().plusDays(1)));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.createTask(1L, req));
+        assertEquals("提醒时间类型为遗忘曲线时，请勿传入remindTimes", ex.getMessage());
+    }
+
+    @Test
+    void shouldRejectFullCustomWhenRemindTimesEmpty() {
+        ReviewTaskMapper reviewTaskMapper = mock(ReviewTaskMapper.class);
+        ReminderScheduleMapper reminderScheduleMapper = mock(ReminderScheduleMapper.class);
+        ReviewRecordMapper reviewRecordMapper = mock(ReviewRecordMapper.class);
+        ReviewTaskServiceImpl service = new ReviewTaskServiceImpl(reviewTaskMapper, reminderScheduleMapper, reviewRecordMapper, DEFAULT_FORGETTING_CURVE);
+
+        CreateReviewTaskRequest req = new CreateReviewTaskRequest();
+        req.setTitle("测试");
+        req.setSourceType(1);
+        req.setReminderStrategy(1);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.createTask(1L, req));
+        assertEquals("提醒时间类型为全部自定义时，remindTimes不能为空", ex.getMessage());
     }
 }
