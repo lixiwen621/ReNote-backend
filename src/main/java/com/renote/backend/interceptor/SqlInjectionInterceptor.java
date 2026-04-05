@@ -29,12 +29,14 @@ import java.util.regex.Pattern;
 public class SqlInjectionInterceptor implements Interceptor {
 
     /**
-     * 尽量“保守”地检测高风险 SQL 注入片段。
+     * 尽量"保守"地检测高风险 SQL 注入片段。
      * 注意：不要把 SELECT/INSERT/UPDATE 这类关键字当作可疑，
      * 否则所有正常查询都会被拦截。
+     * 注意：不检测独立分号，因为 CSS 样式属性（如 color:#ef4444;）及
+     * 普通文本均可能包含分号，而 MyBatis 参数化查询已防止多语句注入。
      */
     private static final Pattern SUSPICIOUS_SQL_PATTERN = Pattern.compile(
-            "(\\bUNION\\b|\\bDROP\\b|\\b--\\b|/\\*|\\*/|;|\\bOR\\b\\s+1\\s*=\\s*1|\\bOR\\b\\s+'[^']*'\\s*=\\s*'[^']*')",
+            "(\\bUNION\\b|\\bDROP\\b|\\b--\\b|/\\*|\\*/|\\bOR\\b\\s+1\\s*=\\s*1|\\bOR\\b\\s+'[^']*'\\s*=\\s*'[^']*')",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -107,7 +109,7 @@ public class SqlInjectionInterceptor implements Interceptor {
                 if (v instanceof String) {
                     String str = (String) v;
                     if (SUSPICIOUS_SQL_PATTERN.matcher(str).find()) {
-                    return true;
+                        return true;
                     }
                 }
             }
@@ -145,4 +147,3 @@ public class SqlInjectionInterceptor implements Interceptor {
         Interceptor.super.setProperties(properties);
     }
 }
-

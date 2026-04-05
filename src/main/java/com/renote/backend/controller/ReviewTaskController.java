@@ -2,6 +2,8 @@ package com.renote.backend.controller;
 
 import com.renote.backend.common.ApiResponse;
 import com.renote.backend.dto.CreateReviewTaskRequest;
+import com.renote.backend.dto.EditReviewTaskRequest;
+import com.renote.backend.dto.EditReviewTaskResponse;
 import com.renote.backend.dto.ReminderScheduleResponse;
 import com.renote.backend.dto.ReviewTaskOverviewResponse;
 import com.renote.backend.dto.ReviewCompleteRequest;
@@ -10,6 +12,7 @@ import com.renote.backend.dto.TodayReviewTaskCardResponse;
 import com.renote.backend.dto.UpdateScheduleTimeRequest;
 import com.renote.backend.dto.UpdateScheduleTimeResponse;
 import com.renote.backend.dto.UpdateTaskNoteUrlRequest;
+import com.renote.backend.dto.UpdateTaskNoteContentRequest;
 import com.renote.backend.dto.WeekReviewScheduleResponse;
 import com.renote.backend.service.ReviewTaskService;
 import com.renote.backend.service.ReviewOverviewService;
@@ -62,6 +65,15 @@ public class ReviewTaskController {
         return ApiResponse.success(reviewTaskService.updateTaskNoteUrl(userId, taskId, request));
     }
 
+    @PatchMapping("/{taskId}/note-content")
+    public ApiResponse<ReviewTaskResponse> updateTaskNoteContent(
+            Authentication authentication,
+            @PathVariable Long taskId,
+            @Valid @RequestBody UpdateTaskNoteContentRequest request) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ApiResponse.success(reviewTaskService.updateTaskNoteContent(userId, taskId, request));
+    }
+
     @GetMapping("/{taskId}/schedules")
     public ApiResponse<List<ReminderScheduleResponse>> getTaskSchedules(
             Authentication authentication,
@@ -88,6 +100,15 @@ public class ReviewTaskController {
             @Valid @RequestBody UpdateScheduleTimeRequest request) {
         Long userId = (Long) authentication.getPrincipal();
         return ApiResponse.success(reviewTaskService.updateScheduleTime(userId, taskId, scheduleId, request));
+    }
+
+    @PatchMapping("/{taskId}/edit")
+    public ApiResponse<EditReviewTaskResponse> editReviewTask(
+            Authentication authentication,
+            @PathVariable Long taskId,
+            @Valid @RequestBody EditReviewTaskRequest request) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ApiResponse.success(reviewTaskService.editReviewTask(userId, taskId, request));
     }
 
     @GetMapping("/overview")

@@ -1,11 +1,14 @@
 package com.renote.backend.service.impl;
 
 import com.renote.backend.dto.CreateReviewTaskRequest;
+import com.renote.backend.dto.EditReviewTaskRequest;
+import com.renote.backend.dto.EditReviewTaskResponse;
 import com.renote.backend.dto.ReminderScheduleResponse;
 import com.renote.backend.dto.ReviewCompleteRequest;
 import com.renote.backend.dto.ReviewTaskResponse;
 import com.renote.backend.dto.UpdateScheduleTimeRequest;
 import com.renote.backend.dto.UpdateScheduleTimeResponse;
+import com.renote.backend.dto.UpdateTaskNoteContentRequest;
 import com.renote.backend.dto.UpdateTaskNoteUrlRequest;
 import com.renote.backend.entity.ReminderSchedule;
 import com.renote.backend.entity.ReviewTask;
@@ -208,6 +211,9 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         reviewTaskMapper.updateNextRemindAt(taskId, next);
 
         ReminderSchedule updated = reminderScheduleMapper.findByIdAndUserId(scheduleId, userId);
+        if (updated == null) {
+            throw new IllegalArgumentException("排期更新后查询失败，请重试");
+        }
         return UpdateScheduleTimeResponse.builder()
                 .scheduleId(updated.getId())
                 .taskId(updated.getTaskId())
@@ -240,8 +246,113 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         return toResponse(task);
     }
 
-    private ReviewTask ensureTaskExistsForUser(Long taskId, Long userId) {
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ReviewTaskResponse updateTaskNoteContent(Long userId, Long taskId, UpdateTaskNoteContentRequest request) {
         ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
+        if (task == null) {
+            throw new IllegalArgumentException("任务不存在: " + taskId);
+        }
+        Integer st = task.getStatus();
+        if (Integer.valueOf(ReviewTaskStatus.ARCHIVED.code()).equals(st)) {
+            throw new IllegalArgumentException("任务已归档，不可修改内容");
+        }
+        if (Integer.valueOf(ReviewTaskStatus.DELETED.code()).equals(st)) {
+            throw new IllegalArgumentException("任务已删除，不可修改内容");
+        }
+
+        String noteContent = request.getNoteContent();
+        if (noteContent != null && noteContent.isBlank()) {
+            noteContent = null;
+        }
+        reviewTaskMapper.updateNoteContentByIdAndUserId(taskId, userId, noteContent);
+        task.setNoteContent(noteContent);
+        return toResponse(task);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public EditReviewTaskResponse editReviewTask(Long userId, Long taskId, EditReviewTaskRequest request) {
+        ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
+        if (task == null) {
+            throw new IllegalArgumentException("任务不存在: " + taskId);
+        }
+        Integer st = task.getStatus();
+        if (Integer.valueOf(ReviewTaskStatus.ARCHIVED.code()).equals(st)) {
+            throw new IllegalArgumentException("任务已归档，不可修改");
+        }
+        if (Integer.valueOf(ReviewTaskStatus.DELETED.code()).equals(st)) {
+            throw new IllegalArgumentException("任务已删除，不可修改");
+        }
+
+        // 更新任务链接（null 表示不修改）
+        if (request.getNoteUrl() != null) {
+            String noteUrl = request.getNoteUrl().isBlank() ? null : request.getNoteUrl().trim();
+            reviewTaskMapper.updateNoteUrlByIdAndUserId(taskId, userId, noteUrl);
+            task.setNoteUrl(noteUrl);
+        }
+
+        // 更新复习内容（null 表示不修改）
+        if (request.getNoteContent() != null) {
+            String noteContent = request.getNoteContent().isBlank() ? null : request.getNoteContent();
+            reviewTaskMapper.updateNoteContentByIdAndUserId(taskId, userId, noteContent);
+            task.setNoteContent(noteContent);
+        }
+
+        // 更新提醒时间（scheduleId 和 scheduledAt 均不为 null 时才修改）
+        EditReviewTaskResponse.EditReviewTaskResponseBuilder builder = EditReviewTaskResponse.builder()
+                .id(task.getId())
+                .userId(task.getUserId())
+                .title(task.getTitle())
+                .sourceType(task.getSourceType())
+                .noteUrl(task.getNoteUrl())
+                .noteContent(task.getNoteContent())
+                .timezone(task.getTimezone())
+                .scheduleMode(task.getScheduleMode())
+                .reminderStrategy(task.getReminderStrategy())
+                .status(task.getStatus());
+
+        if (request.getScheduleId() != null && request.getScheduledAt() != null) {
+            ReminderSchedule schedule = reminderScheduleMapper.findByIdAndUserId(request.getScheduleId(), userId);
+            if (schedule == null || !taskId.equals(schedule.getTaskId())) {
+                throw new IllegalArgumentException("提醒计划不存在或不属于该任务");
+            }
+            if (Integer.valueOf(ReminderScheduleStatus.CANCELLED.code()).equals(schedule.getStatus())) {
+                throw new IllegalArgumentException("该排期已取消，不可修改提醒时间");
+            }
+            if (Integer.valueOf(ReminderScheduleStatus.SENDING.code()).equals(schedule.getStatus())) {
+                throw new IllegalArgumentException("发送中排期暂不支持修改提醒时间，请稍后重试");
+            }
+            if (reviewRecordMapper.countByUserIdAndScheduleId(userId, request.getScheduleId()) > 0) {
+                throw new IllegalArgumentException("该排期已完成复习，不可修改提醒时间");
+            }
+
+            validateScheduledAtForNewReminder(request.getScheduledAt());
+
+            reminderScheduleMapper.updateScheduledAtByIdAndUserId(
+                    request.getScheduleId(), userId, request.getScheduledAt());
+
+            List<ReminderSchedule> remains = reminderScheduleMapper.findByTaskId(taskId);
+            LocalDateTime next = remains.stream()
+                    .filter(s -> Integer.valueOf(ReminderScheduleStatus.PENDING.code()).equals(s.getStatus()))
+                    .map(ReminderSchedule::getScheduledAt)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+            reviewTaskMapper.updateNextRemindAt(taskId, next);
+
+            ReminderSchedule updated = reminderScheduleMapper.findByIdAndUserId(request.getScheduleId(), userId);
+            if (updated == null) {
+                throw new IllegalArgumentException("排期更新后查询失败，请重试");
+            }
+            builder.scheduleId(updated.getId())
+                    .scheduledAt(updated.getScheduledAt())
+                    .scheduleStatus(updated.getStatus());
+        }
+
+        return builder.build();
+    }
+
+    private ReviewTask ensureTaskExistsForUser(Long taskId, Long userId) {        ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
         if (task == null) {
             throw new IllegalArgumentException("任务不存在: " + taskId);
         }

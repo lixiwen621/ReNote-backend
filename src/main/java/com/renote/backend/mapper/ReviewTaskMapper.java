@@ -20,4 +20,8 @@ public interface ReviewTaskMapper {
     int updateNoteUrlByIdAndUserId(@Param("taskId") Long taskId,
                                    @Param("userId") Long userId,
                                    @Param("noteUrl") String noteUrl);
+
+    int updateNoteContentByIdAndUserId(@Param("taskId") Long taskId,
+                                       @Param("userId") Long userId,
+                                       @Param("noteContent") String noteContent);
 }

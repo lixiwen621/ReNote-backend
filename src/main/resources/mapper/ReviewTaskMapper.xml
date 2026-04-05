@@ -71,4 +71,12 @@
           AND user_id = #{userId}
     </update>
 
+    <update id="updateNoteContentByIdAndUserId">
+        UPDATE review_task
+        SET note_content = #{noteContent},
+            updated_at = NOW(3)
+        WHERE id = #{taskId}
+          AND user_id = #{userId}
+    </update>
+
 </mapper>

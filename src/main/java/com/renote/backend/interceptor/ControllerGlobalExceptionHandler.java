@@ -1,6 +1,8 @@
 package com.renote.backend.interceptor;
 
 import com.renote.backend.common.ApiResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -9,6 +11,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ControllerGlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(ControllerGlobalExceptionHandler.class);
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ApiResponse<Void> handleIllegalArgument(IllegalArgumentException ex) {
@@ -26,7 +30,12 @@ public class ControllerGlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ApiResponse<Void> handleException(Exception ex) {
-        return ApiResponse.fail("系统异常: " + ex.getMessage());
+        log.error("未处理异常 [{}]", ex.getClass().getName(), ex);
+        String msg = ex.getMessage();
+        if (msg == null || msg.isBlank()) {
+            msg = ex.getClass().getSimpleName();
+        }
+        return ApiResponse.fail("系统异常: " + msg);
     }
 
     @ExceptionHandler(AuthenticationException.class)
