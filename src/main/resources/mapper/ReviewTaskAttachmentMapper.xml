@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.renote.backend.mapper.ReviewTaskAttachmentMapper">
+
+    <insert id="insert" parameterType="com.renote.backend.entity.ReviewTaskAttachment" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO review_task_attachment
+        (task_id, user_id, original_file_name, stored_file_name, content_type, file_size, file_type, storage_path, file_url, created_at, updated_at)
+        VALUES
+        (#{taskId}, #{userId}, #{originalFileName}, #{storedFileName}, #{contentType}, #{fileSize}, #{fileType}, #{storagePath}, #{fileUrl}, NOW(3), NOW(3))
+    </insert>
+
+    <select id="findByTaskIdAndUserId" resultType="com.renote.backend.entity.ReviewTaskAttachment">
+        SELECT id,
+               task_id             AS taskId,
+               user_id             AS userId,
+               original_file_name  AS originalFileName,
+               stored_file_name    AS storedFileName,
+               content_type        AS contentType,
+               file_size           AS fileSize,
+               file_type           AS fileType,
+               storage_path        AS storagePath,
+               file_url            AS fileUrl,
+               created_at          AS createdAt,
+               updated_at          AS updatedAt
+        FROM review_task_attachment
+        WHERE task_id = #{taskId}
+          AND user_id = #{userId}
+        ORDER BY id ASC
+    </select>
+
+</mapper>

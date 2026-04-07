@@ -36,6 +36,7 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e.authenticationEntryPoint(restAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/api/hello", "/api/wechat/callback", "/api/wechat/ca").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/uploads/review-task/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()
                 )

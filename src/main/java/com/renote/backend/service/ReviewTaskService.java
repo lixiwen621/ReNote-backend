@@ -10,12 +10,15 @@ import com.renote.backend.dto.UpdateScheduleTimeRequest;
 import com.renote.backend.dto.UpdateScheduleTimeResponse;
 import com.renote.backend.dto.UpdateTaskNoteContentRequest;
 import com.renote.backend.dto.UpdateTaskNoteUrlRequest;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
 public interface ReviewTaskService {
 
     ReviewTaskResponse createTask(Long userId, CreateReviewTaskRequest request);
+
+    ReviewTaskResponse createTaskWithFiles(Long userId, CreateReviewTaskRequest request, List<MultipartFile> files);
 
     ReviewTaskResponse getTask(Long userId, Long taskId);
 

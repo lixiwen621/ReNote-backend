@@ -5,6 +5,7 @@ import com.renote.backend.dto.EditReviewTaskRequest;
 import com.renote.backend.dto.EditReviewTaskResponse;
 import com.renote.backend.dto.ReminderScheduleResponse;
 import com.renote.backend.dto.ReviewCompleteRequest;
+import com.renote.backend.dto.TaskAttachmentResponse;
 import com.renote.backend.dto.ReviewTaskResponse;
 import com.renote.backend.dto.UpdateScheduleTimeRequest;
 import com.renote.backend.dto.UpdateScheduleTimeResponse;
@@ -12,6 +13,7 @@ import com.renote.backend.dto.UpdateTaskNoteContentRequest;
 import com.renote.backend.dto.UpdateTaskNoteUrlRequest;
 import com.renote.backend.entity.ReminderSchedule;
 import com.renote.backend.entity.ReviewTask;
+import com.renote.backend.entity.ReviewTaskAttachment;
 import com.renote.backend.entity.ReviewRecord;
 import com.renote.backend.enums.NoteSourceType;
 import com.renote.backend.enums.ReminderScheduleStatus;
@@ -21,12 +23,16 @@ import com.renote.backend.enums.ReviewTaskStatus;
 import com.renote.backend.enums.ScheduleMode;
 import com.renote.backend.mapper.ReminderScheduleMapper;
 import com.renote.backend.mapper.ReviewTaskMapper;
+import com.renote.backend.mapper.ReviewTaskAttachmentMapper;
 import com.renote.backend.mapper.ReviewRecordMapper;
 import com.renote.backend.config.ForgettingCurveProperties;
 import com.renote.backend.service.ReviewTaskService;
+import com.renote.backend.config.TaskAttachmentStorageProperties;
+import com.renote.backend.service.TaskAttachmentStorageService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.DateTimeException;
 import java.time.LocalDate;
@@ -45,21 +51,40 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
     private final ReviewTaskMapper reviewTaskMapper;
     private final ReminderScheduleMapper reminderScheduleMapper;
     private final ReviewRecordMapper reviewRecordMapper;
+    private final ReviewTaskAttachmentMapper reviewTaskAttachmentMapper;
     private final ForgettingCurveProperties forgettingCurveProperties;
+    private final TaskAttachmentStorageService taskAttachmentStorageService;
+    private final TaskAttachmentStorageProperties storageProperties;
 
     public ReviewTaskServiceImpl(ReviewTaskMapper reviewTaskMapper,
                                  ReminderScheduleMapper reminderScheduleMapper,
                                  ReviewRecordMapper reviewRecordMapper,
-                                 ForgettingCurveProperties forgettingCurveProperties) {
+                                 ReviewTaskAttachmentMapper reviewTaskAttachmentMapper,
+                                 ForgettingCurveProperties forgettingCurveProperties,
+                                 TaskAttachmentStorageService taskAttachmentStorageService,
+                                 TaskAttachmentStorageProperties storageProperties) {
         this.reviewTaskMapper = reviewTaskMapper;
         this.reminderScheduleMapper = reminderScheduleMapper;
         this.reviewRecordMapper = reviewRecordMapper;
+        this.reviewTaskAttachmentMapper = reviewTaskAttachmentMapper;
         this.forgettingCurveProperties = forgettingCurveProperties;
+        this.taskAttachmentStorageService = taskAttachmentStorageService;
+        this.storageProperties = storageProperties;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ReviewTaskResponse createTask(Long userId, CreateReviewTaskRequest request) {
+        return createTaskInternal(userId, request, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ReviewTaskResponse createTaskWithFiles(Long userId, CreateReviewTaskRequest request, List<MultipartFile> files) {
+        return createTaskInternal(userId, request, files);
+    }
+
+    private ReviewTaskResponse createTaskInternal(Long userId, CreateReviewTaskRequest request, List<MultipartFile> files) {
         Integer scheduleModeInput = request.getScheduleMode() == null
                 ? ScheduleMode.FORGETTING_CURVE.code()
                 : ScheduleMode.fromCode(request.getScheduleMode()).code();
@@ -102,7 +127,8 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         if (nextRemindAt != null) {
             reviewTaskMapper.updateNextRemindAt(task.getId(), nextRemindAt);
         }
-        return toResponse(task);
+        saveAttachments(task.getId(), userId, files);
+        return toResponse(task, userId);
     }
 
     @Override
@@ -111,7 +137,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         if (task == null) {
             throw new IllegalArgumentException("任务不存在: " + taskId);
         }
-        return toResponse(task);
+        return toResponse(task, userId);
     }
 
     @Override
@@ -243,7 +269,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         }
         reviewTaskMapper.updateNoteUrlByIdAndUserId(taskId, userId, noteUrl);
         task.setNoteUrl(noteUrl);
-        return toResponse(task);
+        return toResponse(task, userId);
     }
 
     @Override
@@ -267,7 +293,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         }
         reviewTaskMapper.updateNoteContentByIdAndUserId(taskId, userId, noteContent);
         task.setNoteContent(noteContent);
-        return toResponse(task);
+        return toResponse(task, userId);
     }
 
     @Override
@@ -352,7 +378,8 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         return builder.build();
     }
 
-    private ReviewTask ensureTaskExistsForUser(Long taskId, Long userId) {        ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
+    private ReviewTask ensureTaskExistsForUser(Long taskId, Long userId) {
+        ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
         if (task == null) {
             throw new IllegalArgumentException("任务不存在: " + taskId);
         }
@@ -447,7 +474,44 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         }
     }
 
-    private ReviewTaskResponse toResponse(ReviewTask task) {
+    private void saveAttachments(Long taskId, Long userId, List<MultipartFile> files) {
+        if (files == null || files.isEmpty()) {
+            return;
+        }
+        if (files.size() > storageProperties.getMaxFileCount()) {
+            throw new IllegalArgumentException("单次最多上传" + storageProperties.getMaxFileCount() + "个文件");
+        }
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) {
+                continue;
+            }
+            if (file.getSize() > storageProperties.getMaxFileSizeBytes()) {
+                throw new IllegalArgumentException("文件过大，单文件限制" + storageProperties.getMaxFileSizeBytes() + "字节");
+            }
+            TaskAttachmentStorageService.StoredAttachment stored = taskAttachmentStorageService.save(file, userId, taskId);
+            ReviewTaskAttachment attachment = new ReviewTaskAttachment();
+            attachment.setTaskId(taskId);
+            attachment.setUserId(userId);
+            attachment.setOriginalFileName(file.getOriginalFilename());
+            attachment.setStoredFileName(stored.storedFileName());
+            attachment.setContentType(file.getContentType());
+            attachment.setFileSize(file.getSize());
+            attachment.setFileType(resolveFileType(file.getContentType()));
+            attachment.setStoragePath(stored.storagePath());
+            attachment.setFileUrl(stored.fileUrl());
+            reviewTaskAttachmentMapper.insert(attachment);
+        }
+    }
+
+    private static int resolveFileType(String contentType) {
+        if (contentType != null && contentType.toLowerCase().startsWith("image/")) {
+            return 1;
+        }
+        return 2;
+    }
+
+    private ReviewTaskResponse toResponse(ReviewTask task, Long userId) {
+        List<ReviewTaskAttachment> attachments = reviewTaskAttachmentMapper.findByTaskIdAndUserId(task.getId(), userId);
         return ReviewTaskResponse.builder()
                 .id(task.getId())
                 .userId(task.getUserId())
@@ -459,6 +523,14 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
                 .scheduleMode(task.getScheduleMode())
                 .reminderStrategy(task.getReminderStrategy())
                 .status(task.getStatus())
+                .attachments(attachments.stream().map(item -> TaskAttachmentResponse.builder()
+                        .id(item.getId())
+                        .originalFileName(item.getOriginalFileName())
+                        .contentType(item.getContentType())
+                        .fileSize(item.getFileSize())
+                        .fileType(item.getFileType())
+                        .fileUrl(item.getFileUrl())
+                        .build()).toList())
                 .build();
     }
 }

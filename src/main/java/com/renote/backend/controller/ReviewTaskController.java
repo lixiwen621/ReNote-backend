@@ -18,6 +18,7 @@ import com.renote.backend.service.ReviewTaskService;
 import com.renote.backend.service.ReviewOverviewService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.time.LocalDate;
@@ -48,6 +50,15 @@ public class ReviewTaskController {
             @Valid @RequestBody CreateReviewTaskRequest request) {
         Long userId = (Long) authentication.getPrincipal();
         return ApiResponse.success(reviewTaskService.createTask(userId, request));
+    }
+
+    @PostMapping(value = "/multipart", consumes = {"multipart/form-data"})
+    public ApiResponse<ReviewTaskResponse> createTaskWithFiles(
+            Authentication authentication,
+            @Valid @RequestPart("task") CreateReviewTaskRequest request,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ApiResponse.success(reviewTaskService.createTaskWithFiles(userId, request, files));
     }
 
     @GetMapping("/{taskId}")
