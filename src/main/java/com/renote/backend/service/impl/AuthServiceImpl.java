@@ -30,6 +30,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public LoginResponse register(RegisterRequest request) {
+        I18nPreconditions.checkNotNull(request, "error.auth.registerRequest.required");
         I18nPreconditions.checkState(userMapper.findByUsername(request.getUsername().trim()) == null,
                 "error.auth.usernameDuplicate");
         User user = new User();
@@ -42,6 +43,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse login(LoginRequest request) {
+        I18nPreconditions.checkNotNull(request, "error.auth.loginRequest.required");
         User user = userMapper.findByUsername(request.getUsername().trim());
         I18nPreconditions.checkNotNull(user, "error.auth.usernameNotFound");
         I18nPreconditions.checkArgument(passwordEncoder.matches(request.getPassword(), user.getPasswordHash()),
