@@ -1,5 +1,7 @@
 package com.renote.backend.enums;
 
+import com.renote.backend.common.I18nPreconditions;
+
 public enum ReviewResult {
     DONE(1, "done"),
     PARTIAL(2, "partial"),
@@ -18,14 +20,15 @@ public enum ReviewResult {
     }
 
     public static ReviewResult fromCode(Integer code) {
-        if (code == null) {
-            throw new IllegalArgumentException("reviewResult不能为空");
-        }
+        I18nPreconditions.checkNotNull(code, "error.enum.reviewResult.required");
+        ReviewResult found = null;
         for (ReviewResult result : values()) {
             if (result.code == code) {
-                return result;
+                found = result;
+                break;
             }
         }
-        throw new IllegalArgumentException("reviewResult非法: " + code);
+        I18nPreconditions.checkArgument(found != null, "error.enum.reviewResult.invalid", code);
+        return found;
     }
 }

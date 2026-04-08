@@ -1,5 +1,7 @@
 package com.renote.backend.enums;
 
+import com.renote.backend.common.I18nPreconditions;
+
 public enum ScheduleMode {
     MANUAL(1, "manual"),
     FORGETTING_CURVE(2, "forgetting_curve");
@@ -20,11 +22,14 @@ public enum ScheduleMode {
         if (code == null) {
             return FORGETTING_CURVE;
         }
+        ScheduleMode found = null;
         for (ScheduleMode mode : values()) {
             if (mode.code == code) {
-                return mode;
+                found = mode;
+                break;
             }
         }
-        throw new IllegalArgumentException("scheduleMode非法: " + code);
+        I18nPreconditions.checkArgument(found != null, "error.enum.scheduleMode.invalid", code);
+        return found;
     }
 }

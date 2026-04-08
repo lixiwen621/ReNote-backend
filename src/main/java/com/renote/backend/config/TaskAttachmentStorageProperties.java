@@ -40,5 +40,10 @@ public class TaskAttachmentStorageProperties {
          * 若使用自定义域名或 CDN，填完整前缀（无末尾斜杠）。
          */
         private String publicBaseUrl = "";
+
+        /**
+         * 私有桶读附件时，接口返回的 {@code fileUrl} 使用预签名 URL 的有效期（秒），默认 1 小时。
+         */
+        private int presignedUrlExpirationSeconds = 3600;
     }
 }

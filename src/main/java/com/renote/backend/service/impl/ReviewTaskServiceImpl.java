@@ -25,9 +25,11 @@ import com.renote.backend.mapper.ReminderScheduleMapper;
 import com.renote.backend.mapper.ReviewTaskMapper;
 import com.renote.backend.mapper.ReviewTaskAttachmentMapper;
 import com.renote.backend.mapper.ReviewRecordMapper;
+import com.renote.backend.common.I18nPreconditions;
 import com.renote.backend.config.ForgettingCurveProperties;
 import com.renote.backend.service.ReviewTaskService;
 import com.renote.backend.config.TaskAttachmentStorageProperties;
+import com.renote.backend.service.CosAttachmentUrlService;
 import com.renote.backend.service.TaskAttachmentStorageService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +57,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
     private final ForgettingCurveProperties forgettingCurveProperties;
     private final TaskAttachmentStorageService taskAttachmentStorageService;
     private final TaskAttachmentStorageProperties storageProperties;
+    private final CosAttachmentUrlService cosAttachmentUrlService;
 
     public ReviewTaskServiceImpl(ReviewTaskMapper reviewTaskMapper,
                                  ReminderScheduleMapper reminderScheduleMapper,
@@ -62,7 +65,8 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
                                  ReviewTaskAttachmentMapper reviewTaskAttachmentMapper,
                                  ForgettingCurveProperties forgettingCurveProperties,
                                  TaskAttachmentStorageService taskAttachmentStorageService,
-                                 TaskAttachmentStorageProperties storageProperties) {
+                                 TaskAttachmentStorageProperties storageProperties,
+                                 CosAttachmentUrlService cosAttachmentUrlService) {
         this.reviewTaskMapper = reviewTaskMapper;
         this.reminderScheduleMapper = reminderScheduleMapper;
         this.reviewRecordMapper = reviewRecordMapper;
@@ -70,6 +74,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         this.forgettingCurveProperties = forgettingCurveProperties;
         this.taskAttachmentStorageService = taskAttachmentStorageService;
         this.storageProperties = storageProperties;
+        this.cosAttachmentUrlService = cosAttachmentUrlService;
     }
 
     @Override
@@ -134,9 +139,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
     @Override
     public ReviewTaskResponse getTask(Long userId, Long taskId) {
         ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
-        if (task == null) {
-            throw new IllegalArgumentException("任务不存在: " + taskId);
-        }
+        I18nPreconditions.checkNotNull(task, "error.task.notFound", taskId);
         return toResponse(task, userId);
     }
 
@@ -168,9 +171,8 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         Long scheduleId = request.getScheduleId();
         if (scheduleId != null) {
             ReminderSchedule schedule = reminderScheduleMapper.findByIdAndUserId(scheduleId, userId);
-            if (schedule == null || !taskId.equals(schedule.getTaskId())) {
-                throw new IllegalArgumentException("提醒计划不存在或不属于该任务: " + scheduleId);
-            }
+            I18nPreconditions.checkArgument(schedule != null && taskId.equals(schedule.getTaskId()),
+                    "error.schedule.notFoundOrNotBelongsWithId", scheduleId);
             if (reviewRecordMapper.countByUserIdAndScheduleId(userId, scheduleId) > 0) {
                 reminderScheduleMapper.markSentIfPending(scheduleId);
                 return;
@@ -210,19 +212,15 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         ensureTaskExistsForUser(taskId, userId);
 
         ReminderSchedule schedule = reminderScheduleMapper.findByIdAndUserId(scheduleId, userId);
-        if (schedule == null || !taskId.equals(schedule.getTaskId())) {
-            throw new IllegalArgumentException("提醒计划不存在或不属于该任务");
-        }
+        I18nPreconditions.checkArgument(schedule != null && taskId.equals(schedule.getTaskId()),
+                "error.schedule.notFoundOrNotBelongs");
 
-        if (Integer.valueOf(ReminderScheduleStatus.CANCELLED.code()).equals(schedule.getStatus())) {
-            throw new IllegalArgumentException("该排期已取消，不可修改");
-        }
-        if (Integer.valueOf(ReminderScheduleStatus.SENDING.code()).equals(schedule.getStatus())) {
-            throw new IllegalArgumentException("发送中排期暂不支持修改，请稍后重试");
-        }
-        if (reviewRecordMapper.countByUserIdAndScheduleId(userId, scheduleId) > 0) {
-            throw new IllegalArgumentException("该排期已完成复习，不可修改");
-        }
+        I18nPreconditions.checkState(!Integer.valueOf(ReminderScheduleStatus.CANCELLED.code()).equals(schedule.getStatus()),
+                "error.schedule.cancelled.cannotReschedule");
+        I18nPreconditions.checkState(!Integer.valueOf(ReminderScheduleStatus.SENDING.code()).equals(schedule.getStatus()),
+                "error.schedule.sending.cannotReschedule");
+        I18nPreconditions.checkState(reviewRecordMapper.countByUserIdAndScheduleId(userId, scheduleId) == 0,
+                "error.schedule.reviewCompleted.cannotReschedule");
 
         validateScheduledAtForNewReminder(request.getScheduledAt());
 
@@ -237,9 +235,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         reviewTaskMapper.updateNextRemindAt(taskId, next);
 
         ReminderSchedule updated = reminderScheduleMapper.findByIdAndUserId(scheduleId, userId);
-        if (updated == null) {
-            throw new IllegalArgumentException("排期更新后查询失败，请重试");
-        }
+        I18nPreconditions.checkNotNull(updated, "error.schedule.reloadAfterUpdateFailed");
         return UpdateScheduleTimeResponse.builder()
                 .scheduleId(updated.getId())
                 .taskId(updated.getTaskId())
@@ -252,16 +248,12 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
     @Transactional(rollbackFor = Exception.class)
     public ReviewTaskResponse updateTaskNoteUrl(Long userId, Long taskId, UpdateTaskNoteUrlRequest request) {
         ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
-        if (task == null) {
-            throw new IllegalArgumentException("任务不存在: " + taskId);
-        }
+        I18nPreconditions.checkNotNull(task, "error.task.notFound", taskId);
         Integer st = task.getStatus();
-        if (Integer.valueOf(ReviewTaskStatus.ARCHIVED.code()).equals(st)) {
-            throw new IllegalArgumentException("任务已归档，不可修改链接");
-        }
-        if (Integer.valueOf(ReviewTaskStatus.DELETED.code()).equals(st)) {
-            throw new IllegalArgumentException("任务已删除，不可修改链接");
-        }
+        I18nPreconditions.checkState(!Integer.valueOf(ReviewTaskStatus.ARCHIVED.code()).equals(st),
+                "error.task.archived.cannotEditNoteUrl");
+        I18nPreconditions.checkState(!Integer.valueOf(ReviewTaskStatus.DELETED.code()).equals(st),
+                "error.task.deleted.cannotEditNoteUrl");
 
         String noteUrl = request.getNoteUrl();
         if (noteUrl != null && noteUrl.isBlank()) {
@@ -276,16 +268,12 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
     @Transactional(rollbackFor = Exception.class)
     public ReviewTaskResponse updateTaskNoteContent(Long userId, Long taskId, UpdateTaskNoteContentRequest request) {
         ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
-        if (task == null) {
-            throw new IllegalArgumentException("任务不存在: " + taskId);
-        }
+        I18nPreconditions.checkNotNull(task, "error.task.notFound", taskId);
         Integer st = task.getStatus();
-        if (Integer.valueOf(ReviewTaskStatus.ARCHIVED.code()).equals(st)) {
-            throw new IllegalArgumentException("任务已归档，不可修改内容");
-        }
-        if (Integer.valueOf(ReviewTaskStatus.DELETED.code()).equals(st)) {
-            throw new IllegalArgumentException("任务已删除，不可修改内容");
-        }
+        I18nPreconditions.checkState(!Integer.valueOf(ReviewTaskStatus.ARCHIVED.code()).equals(st),
+                "error.task.archived.cannotEditContent");
+        I18nPreconditions.checkState(!Integer.valueOf(ReviewTaskStatus.DELETED.code()).equals(st),
+                "error.task.deleted.cannotEditContent");
 
         String noteContent = request.getNoteContent();
         if (noteContent != null && noteContent.isBlank()) {
@@ -300,16 +288,12 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
     @Transactional(rollbackFor = Exception.class)
     public EditReviewTaskResponse editReviewTask(Long userId, Long taskId, EditReviewTaskRequest request) {
         ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
-        if (task == null) {
-            throw new IllegalArgumentException("任务不存在: " + taskId);
-        }
+        I18nPreconditions.checkNotNull(task, "error.task.notFound", taskId);
         Integer st = task.getStatus();
-        if (Integer.valueOf(ReviewTaskStatus.ARCHIVED.code()).equals(st)) {
-            throw new IllegalArgumentException("任务已归档，不可修改");
-        }
-        if (Integer.valueOf(ReviewTaskStatus.DELETED.code()).equals(st)) {
-            throw new IllegalArgumentException("任务已删除，不可修改");
-        }
+        I18nPreconditions.checkState(!Integer.valueOf(ReviewTaskStatus.ARCHIVED.code()).equals(st),
+                "error.task.archived.cannotEdit");
+        I18nPreconditions.checkState(!Integer.valueOf(ReviewTaskStatus.DELETED.code()).equals(st),
+                "error.task.deleted.cannotEdit");
 
         // 更新任务链接（null 表示不修改）
         if (request.getNoteUrl() != null) {
@@ -340,18 +324,14 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
 
         if (request.getScheduleId() != null && request.getScheduledAt() != null) {
             ReminderSchedule schedule = reminderScheduleMapper.findByIdAndUserId(request.getScheduleId(), userId);
-            if (schedule == null || !taskId.equals(schedule.getTaskId())) {
-                throw new IllegalArgumentException("提醒计划不存在或不属于该任务");
-            }
-            if (Integer.valueOf(ReminderScheduleStatus.CANCELLED.code()).equals(schedule.getStatus())) {
-                throw new IllegalArgumentException("该排期已取消，不可修改提醒时间");
-            }
-            if (Integer.valueOf(ReminderScheduleStatus.SENDING.code()).equals(schedule.getStatus())) {
-                throw new IllegalArgumentException("发送中排期暂不支持修改提醒时间，请稍后重试");
-            }
-            if (reviewRecordMapper.countByUserIdAndScheduleId(userId, request.getScheduleId()) > 0) {
-                throw new IllegalArgumentException("该排期已完成复习，不可修改提醒时间");
-            }
+            I18nPreconditions.checkArgument(schedule != null && taskId.equals(schedule.getTaskId()),
+                    "error.schedule.notFoundOrNotBelongs");
+            I18nPreconditions.checkState(!Integer.valueOf(ReminderScheduleStatus.CANCELLED.code()).equals(schedule.getStatus()),
+                    "error.schedule.cancelled.cannotEditReminderTime");
+            I18nPreconditions.checkState(!Integer.valueOf(ReminderScheduleStatus.SENDING.code()).equals(schedule.getStatus()),
+                    "error.schedule.sending.cannotEditReminderTime");
+            I18nPreconditions.checkState(reviewRecordMapper.countByUserIdAndScheduleId(userId, request.getScheduleId()) == 0,
+                    "error.schedule.reviewCompleted.cannotEditReminderTime");
 
             validateScheduledAtForNewReminder(request.getScheduledAt());
 
@@ -367,9 +347,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
             reviewTaskMapper.updateNextRemindAt(taskId, next);
 
             ReminderSchedule updated = reminderScheduleMapper.findByIdAndUserId(request.getScheduleId(), userId);
-            if (updated == null) {
-                throw new IllegalArgumentException("排期更新后查询失败，请重试");
-            }
+            I18nPreconditions.checkNotNull(updated, "error.schedule.reloadAfterUpdateFailed");
             builder.scheduleId(updated.getId())
                     .scheduledAt(updated.getScheduledAt())
                     .scheduleStatus(updated.getStatus());
@@ -380,9 +358,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
 
     private ReviewTask ensureTaskExistsForUser(Long taskId, Long userId) {
         ReviewTask task = reviewTaskMapper.findByIdAndUserId(taskId, userId);
-        if (task == null) {
-            throw new IllegalArgumentException("任务不存在: " + taskId);
-        }
+        I18nPreconditions.checkNotNull(task, "error.task.notFound", taskId);
         return task;
     }
 
@@ -400,19 +376,15 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
 
     private void validateReminderStrategyRequest(CreateReviewTaskRequest request, int reminderStrategyCode) {
         if (reminderStrategyCode == ReminderStrategy.FULL_CUSTOM.code()) {
-            if (request.getRemindTimes() == null || request.getRemindTimes().isEmpty()) {
-                throw new IllegalArgumentException("提醒时间类型为全部自定义时，remindTimes不能为空");
-            }
+            I18nPreconditions.checkArgument(request.getRemindTimes() != null && !request.getRemindTimes().isEmpty(),
+                    "error.remindTimes.requiredWhenFullCustom");
             for (LocalDateTime t : request.getRemindTimes()) {
-                if (t == null) {
-                    throw new IllegalArgumentException("remindTimes中不能包含空时间");
-                }
+                I18nPreconditions.checkNotNull(t, "error.remindTimes.containsNullEntry");
             }
             return;
         }
-        if (request.getRemindTimes() != null && !request.getRemindTimes().isEmpty()) {
-            throw new IllegalArgumentException("提醒时间类型为遗忘曲线时，请勿传入remindTimes");
-        }
+        I18nPreconditions.checkArgument(request.getRemindTimes() == null || request.getRemindTimes().isEmpty(),
+                "error.remindTimes.forbiddenWhenForgettingCurve");
         if (request.getFirstReminderAt() != null) {
             validateScheduledAtForNewReminder(request.getFirstReminderAt());
         }
@@ -424,12 +396,9 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
     private void validateScheduledAtForNewReminder(LocalDateTime scheduledAt) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime currentMinute = now.truncatedTo(ChronoUnit.MINUTES);
-        if (scheduledAt.truncatedTo(ChronoUnit.MINUTES).equals(currentMinute)) {
-            throw new IllegalArgumentException("提醒时间必须晚于当前分钟");
-        }
-        if (scheduledAt.isBefore(now)) {
-            throw new IllegalArgumentException("提醒时间不能早于当前时间");
-        }
+        I18nPreconditions.checkState(!scheduledAt.truncatedTo(ChronoUnit.MINUTES).equals(currentMinute),
+                "error.reminder.mustAfterCurrentMinute");
+        I18nPreconditions.checkState(!scheduledAt.isBefore(now), "error.reminder.cannotBeInPast");
     }
 
     private List<LocalDateTime> buildRemindTimes(CreateReviewTaskRequest request, int reminderStrategyCode, String timezone) {
@@ -445,9 +414,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
                 ? request.getCurveRemindTime()
                 : forgettingCurveProperties.getEffectiveRemindTime();
         List<Integer> offsets = forgettingCurveProperties.getEffectiveDayOffsets();
-        if (offsets.isEmpty()) {
-            throw new IllegalStateException("遗忘曲线day-offsets配置为空");
-        }
+        I18nPreconditions.checkState(!offsets.isEmpty(), "error.review.forgetting-curve.empty");
         List<LocalDateTime> curve = new ArrayList<>();
         LocalDateTime first;
         if (request.getFirstReminderAt() != null) {
@@ -478,16 +445,14 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
         if (files == null || files.isEmpty()) {
             return;
         }
-        if (files.size() > storageProperties.getMaxFileCount()) {
-            throw new IllegalArgumentException("单次最多上传" + storageProperties.getMaxFileCount() + "个文件");
-        }
+        I18nPreconditions.checkArgument(files.size() <= storageProperties.getMaxFileCount(),
+                "error.attachment.maxCount", storageProperties.getMaxFileCount());
         for (MultipartFile file : files) {
             if (file == null || file.isEmpty()) {
                 continue;
             }
-            if (file.getSize() > storageProperties.getMaxFileSizeBytes()) {
-                throw new IllegalArgumentException("文件过大，单文件限制" + storageProperties.getMaxFileSizeBytes() + "字节");
-            }
+            I18nPreconditions.checkArgument(file.getSize() <= storageProperties.getMaxFileSizeBytes(),
+                    "error.attachment.maxFileSize", storageProperties.getMaxFileSizeBytes());
             TaskAttachmentStorageService.StoredAttachment stored = taskAttachmentStorageService.save(file, userId, taskId);
             ReviewTaskAttachment attachment = new ReviewTaskAttachment();
             attachment.setTaskId(taskId);
@@ -529,7 +494,7 @@ public class ReviewTaskServiceImpl implements ReviewTaskService {
                         .contentType(item.getContentType())
                         .fileSize(item.getFileSize())
                         .fileType(item.getFileType())
-                        .fileUrl(item.getFileUrl())
+                        .fileUrl(cosAttachmentUrlService.publicUrlForResponse(item))
                         .build()).toList())
                 .build();
     }

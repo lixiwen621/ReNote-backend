@@ -16,6 +16,10 @@ server:
 spring:
   application:
     name: renote-backend
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: true
   servlet:
     multipart:
       max-file-size: ${MULTIPART_MAX_FILE_SIZE:10MB}
@@ -54,6 +58,8 @@ review:
       key-prefix: ${COS_KEY_PREFIX:renote/review-task}
       # 可选：自定义域名/CDN 根 URL（无末尾斜杠）；不填则用 https://{bucket}.cos.{region}.myqcloud.com
       public-base-url: ${COS_PUBLIC_BASE_URL:}
+      # 私有桶：接口返回的 fileUrl 为预签名 URL，默认有效期 1 小时（秒）
+      presigned-url-expiration-seconds: ${COS_PRESIGNED_URL_EXPIRATION_SECONDS:3600}
   # 遗忘曲线自动排期（未传手动 remindTimes 时使用）
   forgetting-curve:
     # 相对「创建当日」（用户时区）的天数偏移，默认 1,2,4,7,15,20

@@ -8,6 +8,7 @@ import com.qcloud.cos.region.Region;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import com.renote.backend.common.I18nPreconditions;
 import org.springframework.util.StringUtils;
 
 /**
@@ -20,13 +21,12 @@ public class CosClientConfiguration {
     @Bean(destroyMethod = "shutdown")
     public COSClient cosClient(TaskAttachmentStorageProperties properties) {
         TaskAttachmentStorageProperties.Cos c = properties.getCos();
-        if (!StringUtils.hasText(c.getRegion())
-                || !StringUtils.hasText(c.getBucket())
-                || !StringUtils.hasText(c.getSecretId())
-                || !StringUtils.hasText(c.getSecretKey())) {
-            throw new IllegalStateException(
-                    "review.attachment.cos 配置不完整：需要 region、bucket、secret-id、secret-key（建议通过环境变量注入）");
-        }
+        I18nPreconditions.checkState(
+                StringUtils.hasText(c.getRegion())
+                        && StringUtils.hasText(c.getBucket())
+                        && StringUtils.hasText(c.getSecretId())
+                        && StringUtils.hasText(c.getSecretKey()),
+                "error.cos.config.incomplete");
         COSCredentials cred = new BasicCOSCredentials(c.getSecretId().trim(), c.getSecretKey().trim());
         ClientConfig clientConfig = new ClientConfig(new Region(c.getRegion().trim()));
         return new COSClient(cred, clientConfig);

@@ -1,5 +1,6 @@
 package com.renote.backend.service.impl;
 
+import com.renote.backend.common.I18nPreconditions;
 import com.renote.backend.dto.CurrentUserResponse;
 import com.renote.backend.dto.LoginRequest;
 import com.renote.backend.dto.LoginResponse;
@@ -29,9 +30,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public LoginResponse register(RegisterRequest request) {
-        if (userMapper.findByUsername(request.getUsername().trim()) != null) {
-            throw new IllegalArgumentException("该用户名已经注册请换一个用户名");
-        }
+        I18nPreconditions.checkState(userMapper.findByUsername(request.getUsername().trim()) == null,
+                "error.auth.usernameDuplicate");
         User user = new User();
         user.setUsername(request.getUsername().trim());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
@@ -43,24 +43,18 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResponse login(LoginRequest request) {
         User user = userMapper.findByUsername(request.getUsername().trim());
-        if (user == null) {
-            throw new IllegalArgumentException("没有该用户名，请注册一下");
-        }
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("密码不正确");
-        }
-        if (!Integer.valueOf(UserStatus.ACTIVE.code()).equals(user.getStatus())) {
-            throw new IllegalArgumentException("账号已禁用");
-        }
+        I18nPreconditions.checkNotNull(user, "error.auth.usernameNotFound");
+        I18nPreconditions.checkArgument(passwordEncoder.matches(request.getPassword(), user.getPasswordHash()),
+                "error.auth.passwordIncorrect");
+        I18nPreconditions.checkState(Integer.valueOf(UserStatus.ACTIVE.code()).equals(user.getStatus()),
+                "error.auth.accountDisabled");
         return buildLoginResponse(user.getId());
     }
 
     @Override
     public CurrentUserResponse getCurrentUser(Long userId) {
         User user = userMapper.findById(userId);
-        if (user == null) {
-            throw new IllegalArgumentException("用户不存在: " + userId);
-        }
+        I18nPreconditions.checkNotNull(user, "error.auth.userNotFound", userId);
         return CurrentUserResponse.builder()
                 .userId(user.getId())
                 .username(user.getUsername())

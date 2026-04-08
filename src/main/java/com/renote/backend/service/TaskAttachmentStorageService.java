@@ -3,6 +3,8 @@ package com.renote.backend.service;
 import com.qcloud.cos.COSClient;
 import com.qcloud.cos.model.ObjectMetadata;
 import com.qcloud.cos.model.PutObjectRequest;
+import com.renote.backend.common.I18nMessageException;
+import com.renote.backend.common.I18nPreconditions;
 import com.renote.backend.config.TaskAttachmentStorageProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -31,13 +33,11 @@ public class TaskAttachmentStorageService {
     }
 
     public StoredAttachment save(MultipartFile file, Long userId, Long taskId) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("上传文件不能为空");
-        }
+        I18nPreconditions.checkArgument(file != null && !file.isEmpty(), "error.attachment.uploadEmpty");
         if ("cos".equalsIgnoreCase(storageProperties.getStorageBackend())) {
             COSClient client = cosClientProvider.getIfAvailable();
             if (client == null) {
-                throw new IllegalStateException("已启用 COS 但未注入 COSClient，请检查 review.attachment.cos 配置与 CosClientConfiguration");
+                throw I18nMessageException.of("error.attachment.cos.client.missing");
             }
             return saveToCos(client, file, userId, taskId);
         }
@@ -61,7 +61,7 @@ public class TaskAttachmentStorageService {
             PutObjectRequest req = new PutObjectRequest(bucket, key, in, metadata);
             cosClient.putObject(req);
         } catch (IOException ex) {
-            throw new IllegalStateException("上传到 COS 失败: " + originalName, ex);
+            throw I18nMessageException.of("error.attachment.cos.upload.failed", ex, originalName);
         }
 
         String fileUrl = buildCosPublicUrl(cos, bucket, key);
@@ -86,7 +86,7 @@ public class TaskAttachmentStorageService {
             Files.createDirectories(dir);
             Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ex) {
-            throw new IllegalStateException("保存附件失败: " + originalName, ex);
+            throw I18nMessageException.of("error.attachment.local.save.failed", ex, originalName);
         }
 
         String baseUrl = trimTrailingSlash(storageProperties.getPublicBaseUrl());

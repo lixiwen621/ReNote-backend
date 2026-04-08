@@ -9,6 +9,7 @@ import org.apache.ibatis.plugin.Signature;
 import org.apache.ibatis.reflection.MetaObject;
 import org.apache.ibatis.reflection.SystemMetaObject;
 
+import com.renote.backend.common.I18nPreconditions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -71,9 +72,7 @@ public class SqlInjectionInterceptor implements Interceptor {
             suspicious = containsSuspiciousString(parameterObject);
         }
 
-        if (suspicious && block) {
-            throw new IllegalArgumentException("疑似 SQL 注入/不安全参数，请检查输入");
-        }
+        I18nPreconditions.checkState(!(suspicious && block), "error.security.sqlInjectionSuspicion");
         return invocation.proceed();
     }
 

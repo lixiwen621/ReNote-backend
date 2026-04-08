@@ -1,5 +1,7 @@
 package com.renote.backend.notify;
 
+import com.renote.backend.common.I18nMessageException;
+import com.renote.backend.common.I18nPreconditions;
 import org.springframework.util.StringUtils;
 
 import javax.crypto.Cipher;
@@ -45,9 +47,8 @@ public class WeComCallbackCrypto {
         byte[] receiveIdBytes = Arrays.copyOfRange(bytes, 20 + xmlLength, bytes.length);
         String receiveId = new String(receiveIdBytes, StandardCharsets.UTF_8);
 
-        if (StringUtils.hasText(expectedReceiveId) && !expectedReceiveId.equals(receiveId)) {
-            throw new IllegalArgumentException("receiveId校验失败");
-        }
+        I18nPreconditions.checkState(!StringUtils.hasText(expectedReceiveId) || expectedReceiveId.equals(receiveId),
+                "error.wecom.receiveIdMismatch");
         return new String(xmlBytes, StandardCharsets.UTF_8);
     }
 
@@ -73,7 +74,7 @@ public class WeComCallbackCrypto {
             }
             return sb.toString();
         } catch (Exception ex) {
-            throw new IllegalStateException("SHA1计算失败", ex);
+            throw I18nMessageException.of("error.wecom.sha1.failed", ex);
         }
     }
 }

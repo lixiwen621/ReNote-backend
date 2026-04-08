@@ -1,5 +1,7 @@
 package com.renote.backend.enums;
 
+import com.renote.backend.common.I18nPreconditions;
+
 /**
  * 创建任务时的提醒时间策略（与 {@code schedule_mode} 配合落库）。
  */
@@ -20,14 +22,15 @@ public enum ReminderStrategy {
     }
 
     public static ReminderStrategy fromCode(Integer code) {
-        if (code == null) {
-            throw new IllegalArgumentException("reminderStrategy不能为空");
-        }
+        I18nPreconditions.checkNotNull(code, "error.enum.reminderStrategy.required");
+        ReminderStrategy found = null;
         for (ReminderStrategy s : values()) {
             if (s.code == code) {
-                return s;
+                found = s;
+                break;
             }
         }
-        throw new IllegalArgumentException("reminderStrategy非法: " + code);
+        I18nPreconditions.checkArgument(found != null, "error.enum.reminderStrategy.invalid", code);
+        return found;
     }
 }

@@ -1,5 +1,6 @@
 package com.renote.backend.service;
 
+import com.renote.backend.common.I18nMessageException;
 import com.renote.backend.dto.LoginRequest;
 import com.renote.backend.dto.RegisterRequest;
 import com.renote.backend.entity.User;
@@ -30,8 +31,8 @@ class AuthServiceImplTest {
         req.setUsername("nouser");
         req.setPassword("any");
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.login(req));
-        assertEquals("没有该用户名，请注册一下", ex.getMessage());
+        I18nMessageException ex = assertThrows(I18nMessageException.class, () -> service.login(req));
+        assertEquals("error.auth.usernameNotFound", ex.getMessageKey());
     }
 
     @Test
@@ -53,8 +54,8 @@ class AuthServiceImplTest {
         req.setUsername("alice");
         req.setPassword("wrong");
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.login(req));
-        assertEquals("密码不正确", ex.getMessage());
+        I18nMessageException ex = assertThrows(I18nMessageException.class, () -> service.login(req));
+        assertEquals("error.auth.passwordIncorrect", ex.getMessageKey());
     }
 
     @Test
@@ -72,7 +73,7 @@ class AuthServiceImplTest {
         req.setUsername("taken");
         req.setPassword("secret12");
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.register(req));
-        assertEquals("该用户名已经注册请换一个用户名", ex.getMessage());
+        I18nMessageException ex = assertThrows(I18nMessageException.class, () -> service.register(req));
+        assertEquals("error.auth.usernameDuplicate", ex.getMessageKey());
     }
 }

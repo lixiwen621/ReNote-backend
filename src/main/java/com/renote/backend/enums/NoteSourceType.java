@@ -1,5 +1,7 @@
 package com.renote.backend.enums;
 
+import com.renote.backend.common.I18nPreconditions;
+
 public enum NoteSourceType {
     EVERNOTE(1, "evernote"),
     OTHER(2, "other");
@@ -17,14 +19,15 @@ public enum NoteSourceType {
     }
 
     public static NoteSourceType fromCode(Integer code) {
-        if (code == null) {
-            throw new IllegalArgumentException("sourceType不能为空");
-        }
+        I18nPreconditions.checkNotNull(code, "error.enum.sourceType.required");
+        NoteSourceType found = null;
         for (NoteSourceType type : values()) {
             if (type.code == code) {
-                return type;
+                found = type;
+                break;
             }
         }
-        throw new IllegalArgumentException("sourceType非法: " + code);
+        I18nPreconditions.checkArgument(found != null, "error.enum.sourceType.invalid", code);
+        return found;
     }
 }
