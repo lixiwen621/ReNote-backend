@@ -68,6 +68,6 @@ class ReminderControllerTest {
         mockMvc.perform(post("/api/reminders/dispatch")
                         .header(AUTH_HEADER, BEARER_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
+                .andExpect(jsonPath("$.code").value(200));
     }
 }

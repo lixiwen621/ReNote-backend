@@ -114,7 +114,7 @@ class ReviewTaskControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value("success"))
                 .andExpect(jsonPath("$.data.id").value(1001))
                 .andExpect(jsonPath("$.data.title").value("Java并发笔记"));
@@ -130,7 +130,7 @@ class ReviewTaskControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(1))
+                .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").exists());
     }
 
@@ -152,7 +152,7 @@ class ReviewTaskControllerTest {
         mockMvc.perform(get("/api/review-tasks/1001")
                         .header(AUTH_HEADER, BEARER_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1001))
                 .andExpect(jsonPath("$.data.status").value(1));
     }
@@ -169,7 +169,7 @@ class ReviewTaskControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
+                .andExpect(jsonPath("$.code").value(200));
     }
 
     @Test
@@ -192,7 +192,7 @@ class ReviewTaskControllerTest {
         mockMvc.perform(get("/api/review-tasks/overview")
                         .header(AUTH_HEADER, BEARER_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.dueTaskCount").value(1))
                 .andExpect(jsonPath("$.data.dueReminderCount").value(2))
                 .andExpect(jsonPath("$.data.pendingNotifyReminderCount").value(1))
@@ -217,7 +217,7 @@ class ReviewTaskControllerTest {
         mockMvc.perform(get("/api/review-tasks/today")
                         .header(AUTH_HEADER, BEARER_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data[0].taskId").value(1001))
                 .andExpect(jsonPath("$.data[0].title").value("Java并发笔记"))
                 .andExpect(jsonPath("$.data[0].scheduleId").value(2001))
@@ -252,7 +252,7 @@ class ReviewTaskControllerTest {
                         .param("date", "2026-03-18")
                         .header(AUTH_HEADER, BEARER_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.weekStart").value("2026-03-16"))
                 .andExpect(jsonPath("$.data.weekEnd").value("2026-03-22"))
                 .andExpect(jsonPath("$.data.days[0].date").value("2026-03-16"))
@@ -280,7 +280,7 @@ class ReviewTaskControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.scheduleId").value(2001))
                 .andExpect(jsonPath("$.data.taskId").value(1001))
                 .andExpect(jsonPath("$.data.scheduledAt").value("2026-04-01T21:00:00"))
@@ -311,7 +311,7 @@ class ReviewTaskControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.noteUrl").value("https://example.com/note/updated"));
     }
 }
